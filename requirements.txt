@@ -1,0 +1,4 @@
+nibabel>=2.2.1
+#-e git+https://github.com/pytorch/vision.git#egg=torchvision
+scipy>=1.0.0
+numpy>=1.14.1
