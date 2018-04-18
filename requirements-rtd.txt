@@ -1,0 +1,4 @@
+nibabel>=2.2.1
+scipy>=1.0.0
+numpy>=1.14.1
+tqdm>=4.23.0
