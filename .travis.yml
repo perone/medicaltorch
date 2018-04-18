@@ -1,7 +1,7 @@
 language: python
 
 install:
-  - pip install -r requirements.txt
+  - pip install -r requirements-rtd.txt
 
 script:
   # Use Sphinx to make the html docs
