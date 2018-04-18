@@ -6,7 +6,7 @@ Example lalala
 --------------------------------------------------------------------------------
 Create example::
 
-    import medicaltorch
+    import medicaltorch as mt
     import torch
 
-    print("lol")
+    print("TODO")
