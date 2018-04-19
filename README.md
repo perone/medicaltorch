@@ -6,4 +6,6 @@
 MedicalTorch is an open-source framework for pytorch, implemeting an extensive set
 of loaders, pre-processors and datasets for medical imaging.
 
+See the [documentation site](http://medicaltorch.readthedocs.io) for more information.
+
 ## Framework still under development
