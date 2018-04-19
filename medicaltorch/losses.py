@@ -1,7 +1,13 @@
-import torch.nn as nn
+from torch.nn import Module
 
 
 def dice_loss(input, target):
+    """Dice loss.
+
+    :param input: The input (predicted)
+    :param target:  The target (ground truth)
+    :returns: the Dice score between 0 and 1.
+    """
     eps = 0.0001
 
     iflat = input.view(-1)
@@ -15,7 +21,12 @@ def dice_loss(input, target):
     return - dice
 
 
-class MaskedDiceLoss(nn.Module):
+class MaskedDiceLoss(Module):
+    """A masked version of the Dice loss.
+
+    :param ignore_value: the value to ignore.
+    """
+
     def __init__(self, ignore_value=-100.0):
         super().__init__()
         self.ignore_value = ignore_value

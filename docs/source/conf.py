@@ -14,6 +14,8 @@
 #
 import os
 import sys
+from unittest.mock import MagicMock
+
 sys.path.insert(0, os.path.abspath('../..'))
 
 
@@ -73,8 +75,37 @@ exclude_patterns = []
 # The name of the Pygments (syntax highlighting) style to use.
 pygments_style = 'sphinx'
 
+MOCK_MODULES = [
+    # modules to mock
+    'torch',
+    'torchvision',
+    'torch.utils',
+    'torch.nn',
+    'torchvision.transforms',
+    'torch.nn.functional',
+    'torchvision.transforms.functional',
+    'torch.utils.data',
+    'torch._six',
+]
 
-autodoc_mock_imports = ["torch", "torchvision"]
+MOCK_CLASSES = [
+    # classes you are inheriting from
+    "Dataset",
+    "Module",
+]
+
+
+class Mock(MagicMock):
+    @classmethod
+    def __getattr__(cls, name):
+        if name in MOCK_CLASSES:
+            return object
+        return MagicMock()
+
+for mod_name in MOCK_MODULES:
+    sys.modules[mod_name] = Mock()
+
+#autodoc_mock_imports = ["torch", "torchvision"]
 
 # -- Options for HTML output -------------------------------------------------
 
@@ -100,7 +131,7 @@ html_theme_options = {
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
-html_static_path = []
+html_static_path = ['_static']
 
 # Custom sidebar templates, must be a dictionary that maps document names
 # to template names.
