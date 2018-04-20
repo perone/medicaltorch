@@ -34,7 +34,7 @@ class MaskedDiceLoss(Module):
     def forward(self, input, target):
         eps = 0.0001
 
-        masking = target == self.ignore_index
+        masking = target == self.ignore_value
         masking = masking.sum(3).sum(2)
         masking = masking == 0
         masking = masking.squeeze()
