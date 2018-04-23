@@ -1,3 +1,4 @@
+import sys
 import numpy as np
 import numbers
 import torchvision.transforms.functional as F
@@ -182,7 +183,10 @@ class Normalize(MTTransform):
 
     def __call__(self, sample):
         input_data = sample['input']
-        input_data = F.normalize(input_data, self.mean, self.std)
+        if sys.version_info >= (3, 0):
+            input_data = F.normalize(input_data, [self.mean]*input_data.shape[0], [self.std]*input_data.shape[0])
+        else:
+            input_data = F.normalize(input_data, self.mean, self.std)
 
         rdict = {
             'input': input_data,
