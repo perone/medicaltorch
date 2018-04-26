@@ -268,7 +268,7 @@ class MRI2DSegmentationDataset(Dataset):
                                  refresh=False)
 
         training_std = np.sqrt(sum_var / numel)
-        return training_mean, training_std
+        return training_mean.item(), training_std.item()
 
     def __len__(self):
         """Return the dataset size."""
@@ -324,7 +324,7 @@ class DatasetManager(object):
             self.dataset.transform = self._transform_state
 
 
-class SCGMChallenge2D(MRI2DSegmentationDataset):
+class SCGMChallenge2DTrain(MRI2DSegmentationDataset):
     """This is the Spinal Cord Gray Matter Challenge dataset.
 
     :param root_dir: the directory containing the training dataset.
@@ -357,9 +357,9 @@ class SCGMChallenge2D(MRI2DSegmentationDataset):
                  canonical=False):
 
         self.root_dir = root_dir
-        self.site_ids = site_ids or range(1, SCGMChallenge2D.NUM_SITES + 1)
-        self.subj_ids = subj_ids or range(1, SCGMChallenge2D.NUM_SUBJECTS + 1)
-        self.rater_ids = rater_ids or range(1, SCGMChallenge2D.NUM_RATERS + 1)
+        self.site_ids = site_ids or range(1, SCGMChallenge2DTrain.NUM_SITES + 1)
+        self.subj_ids = subj_ids or range(1, SCGMChallenge2DTrain.NUM_SUBJECTS + 1)
+        self.rater_ids = rater_ids or range(1, SCGMChallenge2DTrain.NUM_RATERS + 1)
 
         self.filename_pairs = []
 
@@ -383,6 +383,62 @@ class SCGMChallenge2D(MRI2DSegmentationDataset):
             return "site{:d}-sc{:02d}-image.nii.gz".format(site_id, subj_id)
         else:
             return "site{:d}-sc{:02d}-mask-r{:d}.nii.gz".format(site_id, subj_id, rater_id)
+
+
+class SCGMChallenge2DTest(MRI2DSegmentationDataset):
+    """This is the Spinal Cord Gray Matter Challenge dataset.
+
+    :param root_dir: the directory containing the test dataset.
+    :param site_ids: a list of site ids to filter (i.e. [1, 3]).
+    :param subj_ids: the list of subject ids to filter.
+    :param transform: the transformations that should be applied.
+    :param cache: if the data should be cached in memory or not.
+    :param slice_axis: axis to make the slicing (default axial).
+
+    .. note:: This dataset assumes that you only have one class in your
+              ground truth mask (w/ 0's and 1's). It also doesn't
+              automatically resample the dataset.
+
+    .. seealso::
+        Prados, F., et al (2017). Spinal cord grey matter
+        segmentation challenge. NeuroImage, 152, 312–329.
+        https://doi.org/10.1016/j.neuroimage.2017.03.010
+
+        Challenge Website:
+        http://cmictig.cs.ucl.ac.uk/spinal-cord-grey-matter-segmentation-challenge
+    """
+    NUM_SITES = 4
+    NUM_SUBJECTS = 10
+
+    def __init__(self, root_dir, slice_axis=2, site_ids=None,
+                 subj_ids=None, cache=True,
+                 transform=None, slice_filter_fn=None,
+                 canonical=False):
+
+        self.root_dir = root_dir
+        self.site_ids = site_ids or range(1, SCGMChallenge2DTest.NUM_SITES + 1)
+        self.subj_ids = subj_ids or range(11, 10 + SCGMChallenge2DTest.NUM_SUBJECTS + 1)
+
+        self.filename_pairs = []
+
+        for site_id in self.site_ids:
+            for subj_id in self.subj_ids:
+                input_filename = self._build_train_input_filename(site_id, subj_id)
+                gt_filename = None
+
+                input_filename = os.path.join(self.root_dir, input_filename)
+                self.filename_pairs.append((input_filename, gt_filename))
+
+        super().__init__(self.filename_pairs, slice_axis, cache,
+                         transform, slice_filter_fn, canonical)
+
+    @staticmethod
+    def _build_train_input_filename(site_id, subj_id, rater_id=None):
+        if rater_id is None:
+            return "site{:d}-sc{:02d}-image.nii.gz".format(site_id, subj_id)
+        else:
+            return "site{:d}-sc{:02d}-mask-r{:d}.nii.gz".format(site_id, subj_id, rater_id)
+
 
 
 def mt_collate(batch):

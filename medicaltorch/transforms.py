@@ -36,18 +36,16 @@ class UndoTransform(object):
 
 
 class ToTensor(MTTransform):
-    def __init__(self, labeled=True):
-        self.labeled = labeled
 
     """Convert a PIL image or numpy array to a PyTorch tensor."""
     def __call__(self, sample):
         rdict = {}
         input_data = sample['input']
+        gt_data = sample['gt']
         input_data_new = F.to_tensor(input_data)
         rdict['input'] = input_data_new
 
-        if self.labeled:
-            gt_data = sample['gt']
+        if gt_data is not None:
             gt_data_new = F.to_tensor(gt_data)
             rdict['gt'] = gt_data_new
 
@@ -179,6 +177,7 @@ class Normalize(MTTransform):
 
     def __call__(self, sample):
         input_data = sample['input']
+
         input_data = F.normalize(input_data, self.mean, self.std)
 
         rdict = {
