@@ -94,12 +94,8 @@ class UnCenterCrop2D(MTTransform):
         input_data, gt_data = sample['input'], sample['gt']
         input_metadata, gt_metadata = sample['input_metadata'], sample['gt_metadata']
 
-        print(type(input_data))
-
         (fh, fw, w, h) = input_metadata["__centercrop"]
         (fh, fw, w, h) = gt_metadata["__centercrop"]
-
-        print("Here: ", fh, fw, w, h)
 
         return sample
 
@@ -147,6 +143,7 @@ class CenterCrop2D(MTTransform):
             gt_data = F.center_crop(gt_data, self.size)
             gt_metadata["__centercrop"] = (fh, fw, w, h)
             rdict['gt'] = gt_data
+
 
         sample.update(rdict)
         return sample
@@ -450,6 +447,27 @@ class Resample(MTTransform):
             np_gt_data[np_gt_data < 0.5] = 0.0
             gt_data = Image.fromarray(np_gt_data, mode='F')
             rdict['gt'] = gt_data
+
+        sample.update(rdict)
+        return sample
+
+
+class AdditiveGaussianNoise(MTTransform):
+    def __init__(self, mean=0.0, std=0.01):
+        self.mean = mean
+        self.std = std
+
+    def __call__(self, sample):
+        rdict = {}
+        input_data = sample['input']
+
+        noise = np.random.normal(self.mean, self.std, input_data.size)
+        noise = noise.astype(np.float32)
+
+        np_input_data = np.array(input_data)
+        np_input_data += noise
+        input_data = Image.fromarray(np_input_data, mode='F')
+        rdict['input'] = input_data
 
         sample.update(rdict)
         return sample
