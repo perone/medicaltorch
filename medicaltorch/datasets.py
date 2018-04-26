@@ -66,7 +66,7 @@ class SegmentationPair2D(object):
     :param canonical: canonical reordering of the volume axes.
     """
     def __init__(self, input_filename, gt_filename, cache=True,
-                 canonical=True):
+                 canonical=False):
         self.input_filename = input_filename
         self.gt_filename = gt_filename
         self.canonical = canonical
@@ -199,7 +199,7 @@ class MRI2DSegmentationDataset(Dataset):
     :param transform: transformations to apply.
     """
     def __init__(self, filename_pairs, slice_axis=2, cache=True,
-                 transform=None, slice_filter_fn=None, canonical=True):
+                 transform=None, slice_filter_fn=None, canonical=False):
         self.filename_pairs = filename_pairs
         self.handlers = []
         self.indexes = []
@@ -354,7 +354,7 @@ class SCGMChallenge2D(MRI2DSegmentationDataset):
     def __init__(self, root_dir, slice_axis=2, site_ids=None,
                  subj_ids=None, rater_ids=None, cache=True,
                  transform=None, slice_filter_fn=None,
-                 canonical=True):
+                 canonical=False):
 
         self.root_dir = root_dir
         self.site_ids = site_ids or range(1, SCGMChallenge2D.NUM_SITES + 1)
