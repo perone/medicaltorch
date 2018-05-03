@@ -235,6 +235,14 @@ class MRI2DSegmentationDataset(Dataset):
                 item = (segpair, segpair_slice)
                 self.indexes.append(item)
 
+    def set_transform(self, transform):
+        """This method will replace the current transformation for the
+        dataset.
+
+        :param transform: the new transformation
+        """
+        self.transform = transform
+
     def compute_mean_std(self, verbose=False):
         """Compute the mean and standard deviation of the entire dataset.
         
