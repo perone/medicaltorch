@@ -251,7 +251,7 @@ class MRI2DSegmentationDataset(Dataset):
         """
         sum_intensities = 0.0
         numel = 0
-        
+
         with DatasetManager(self,
                             override_transform=mt_transforms.ToTensor()) as dset:
             pbar = tqdm(dset, desc="Mean calculation", disable=not verbose)
@@ -435,6 +435,8 @@ class SCGMChallenge2DTest(MRI2DSegmentationDataset):
                 gt_filename = None
 
                 input_filename = os.path.join(self.root_dir, input_filename)
+                if not os.path.exists(input_filename):
+                    raise RuntimeError("Path '{}' doesn't exist !".format(input_filename))
                 self.filename_pairs.append((input_filename, gt_filename))
 
         super().__init__(self.filename_pairs, slice_axis, cache,

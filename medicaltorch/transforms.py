@@ -36,18 +36,33 @@ class UndoTransform(object):
 
 
 class ToTensor(MTTransform):
-
     """Convert a PIL image or numpy array to a PyTorch tensor."""
+
+    def __init__(self, labeled=True):
+        self.labeled = labeled
+
     def __call__(self, sample):
         rdict = {}
         input_data = sample['input']
-        gt_data = sample['gt']
-        input_data_new = F.to_tensor(input_data)
-        rdict['input'] = input_data_new
 
-        if gt_data is not None:
-            gt_data_new = F.to_tensor(gt_data)
-            rdict['gt'] = gt_data_new
+        if isinstance(input_data, list):
+            ret_input = [F.to_tensor(item)
+                         for item in input_data]
+        else:
+            ret_input = F.to_tensor(input_data)
+
+        rdict['input'] = ret_input
+
+        if self.labeled:
+            gt_data = sample['gt']
+            if gt_data is not None:
+                if isinstance(gt_data, list):
+                    ret_gt = [F.to_tensor(item)
+                              for item in gt_data]
+                else:
+                    ret_gt = F.to_tensor(gt_data)
+
+                rdict['gt'] = ret_gt
 
         sample.update(rdict)
         return sample
@@ -303,6 +318,19 @@ class RandomAffine(MTTransform):
 
         return angle, translations, scale, shear
 
+    def sample_augment(self, input_data, params):
+        input_data = F.affine(input_data, *params, resample=self.resample,
+                              fillcolor=self.fillcolor)
+        return input_data
+
+    def label_augment(self, gt_data, params):
+        gt_data = self.sample_augment(gt_data, params)
+        np_gt_data = np.array(gt_data)
+        np_gt_data[np_gt_data >= 0.5] = 1.0
+        np_gt_data[np_gt_data < 0.5] = 0.0
+        gt_data = Image.fromarray(np_gt_data, mode='F')
+        return gt_data
+
     def __call__(self, sample):
         """
             img (PIL Image): Image to be transformed.
@@ -311,22 +339,33 @@ class RandomAffine(MTTransform):
         """
         rdict = {}
         input_data = sample['input']
-        ret = self.get_params(self.degrees, self.translate, self.scale,
-                              self.shear, input_data.size)
-        input_data = F.affine(input_data, *ret, resample=self.resample,
-                              fillcolor=self.fillcolor)
-        rdict['input'] = input_data
+
+        if isinstance(input_data, list):
+            input_data_size = input_data[0].size
+        else:
+            input_data_size = input_data.size
+
+        params = self.get_params(self.degrees, self.translate, self.scale,
+                                 self.shear, input_data_size)
+
+        if isinstance(input_data, list):
+            ret_input = [self.sample_augment(item, params)
+                         for item in input_data]
+        else:
+            ret_input = self.sample_augment(input_data, params)
+
+        rdict['input'] = ret_input
 
         if self.labeled:
             gt_data = sample['gt']
-            gt_data = F.affine(gt_data, *ret, resample=self.resample,
-                               fillcolor=self.fillcolor)
-            np_gt_data = np.array(gt_data)
-            np_gt_data[np_gt_data >= 0.5] = 1.0
-            np_gt_data[np_gt_data < 0.5] = 0.0
-            gt_data = Image.fromarray(np_gt_data, mode='F')
-            rdict['gt'] = gt_data
-        
+            if isinstance(gt_data, list):
+                ret_gt = [self.label_augment(item, params)
+                          for item in gt_data]
+            else:
+                ret_gt = self.label_augment(gt_data, params)
+
+            rdict['gt'] = ret_gt
+
         sample.update(rdict)
         return sample
 
@@ -335,18 +374,32 @@ class RandomTensorChannelShift(MTTransform):
     def __init__(self, shift_range):
         self.shift_range = shift_range
 
+    @staticmethod
+    def get_params(shift_range):
+        sampled_value = np.random.uniform(shift_range[0],
+                                          shift_range[1])
+        return sampled_value
+
+    def sample_augment(self, input_data, params):
+        np_input_data = np.array(input_data)
+        np_input_data += params
+        input_data = Image.fromarray(np_input_data, mode='F')
+        return input_data
+
     def __call__(self, sample):
         input_data = sample['input']
+        params = self.get_params(self.shift_range)
 
-        np_input_data = np.array(input_data)
-        sampled_value = np.random.uniform(self.shift_range[0],
-                                          self.shift_range[1])
-        np_input_data += sampled_value
-        input_data = Image.fromarray(np_input_data, mode='F')
+        if isinstance(input_data, list):
+            ret_input = [self.sample_augment(item, params)
+                         for item in input_data]
+        else:
+            ret_input = self.sample_augment(input_data, params)
 
         rdict = {
-            'input': input_data,
+            'input': ret_input,
         }
+
         sample.update(rdict)
         return sample
 
@@ -378,28 +431,52 @@ class ElasticTransform(MTTransform):
         indices = np.reshape(x+dx, (-1, 1)), np.reshape(y+dy, (-1, 1))
         return map_coordinates(image, indices, order=1).reshape(shape)
 
+    def sample_augment(self, input_data, params):
+        param_alpha, param_sigma = params
+
+        np_input_data = np.array(input_data)
+        np_input_data = self.elastic_transform(np_input_data,
+                                               param_alpha, param_sigma)
+        input_data = Image.fromarray(np_input_data, mode='F')
+        return input_data
+
+    def label_augment(self, gt_data, params):
+        param_alpha, param_sigma = params
+
+        np_gt_data = np.array(gt_data)
+        np_gt_data = self.elastic_transform(np_gt_data,
+                                            param_alpha, param_sigma)
+        np_gt_data[np_gt_data >= 0.5] = 1.0
+        np_gt_data[np_gt_data < 0.5] = 0.0
+        gt_data = Image.fromarray(np_gt_data, mode='F')
+
+        return gt_data
+
     def __call__(self, sample):
         rdict = {}
-        input_data = sample['input']
 
         if np.random.random() < self.p:
-            param_alpha, param_sigma = self.get_params(self.alpha_range,
-                                                       self.sigma_range)
-            np_input_data = np.array(input_data)
-            np_input_data = self.elastic_transform(np_input_data,
-                                                   param_alpha, param_sigma)
-            input_data = Image.fromarray(np_input_data, mode='F')
-            rdict['input'] = input_data
+            input_data = sample['input']
+            params = self.get_params(self.alpha_range,
+                                     self.sigma_range)
+
+            if isinstance(input_data, list):
+                ret_input = [self.sample_augment(item, params)
+                             for item in input_data]
+            else:
+                ret_input = self.sample_augment(input_data, params)
+
+            rdict['input'] = ret_input
 
             if self.labeled:
                 gt_data = sample['gt']
-                np_gt_data = np.array(gt_data)
-                np_gt_data = self.elastic_transform(np_gt_data,
-                                                    param_alpha, param_sigma)
-                np_gt_data[np_gt_data >= 0.5] = 1.0
-                np_gt_data[np_gt_data < 0.5] = 0.0
-                gt_data = Image.fromarray(np_gt_data, mode='F')
-                rdict['gt'] = gt_data
+                if isinstance(gt_data, list):
+                    ret_gt = [self.label_augment(item, params)
+                              for item in gt_data]
+                else:
+                    ret_gt = self.label_augment(gt_data, params)
+
+                rdict['gt'] = ret_gt
 
         sample.update(rdict)
         return sample
