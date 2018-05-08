@@ -72,27 +72,40 @@ class ToPIL(MTTransform):
     def __init__(self, labeled=True):
         self.labeled = labeled
 
-    def __call__(self, sample):
-        rdict = {}
-        input_data = sample['input']
-
+    def sample_transform(self, sample_data):
         # Numpy array
-        if not isinstance(input_data, np.ndarray):
-            input_data_npy = input_data.numpy()
+        if not isinstance(sample_data, np.ndarray):
+            input_data_npy = sample_data.numpy()
         else:
-            input_data_npy = input_data
+            input_data_npy = sample_data
 
         input_data_npy = np.transpose(input_data_npy, (1, 2, 0))
         input_data_npy = np.squeeze(input_data_npy, axis=2)
         input_data = Image.fromarray(input_data_npy, mode='F')
-        rdict['input'] = input_data
+        return input_data
+
+    def __call__(self, sample):
+        rdict = {}
+        input_data = sample['input']
+
+        if isinstance(input_data, list):
+            ret_input = [self.sample_transform(item)
+                         for item in input_data]
+        else:
+            ret_input = self.sample_transform(input_data)
+
+        rdict['input'] = ret_input
 
         if self.labeled:
             gt_data = sample['gt']
-            gt_data_npy = np.transpose(gt_data.numpy(), (1, 2, 0))
-            gt_data_npy = np.squeeze(gt_data_npy, axis=2)
-            gt_data = Image.fromarray(gt_data_npy, mode='F')
-            rdict['gt'] = gt_data
+
+            if isinstance(gt_data, list):
+                ret_gt = [self.sample_transform(item)
+                          for item in gt_data]
+            else:
+                ret_gt = self.sample_transform(gt_data)
+
+            rdict['gt'] = ret_gt
 
         sample.update(rdict)
         return sample
