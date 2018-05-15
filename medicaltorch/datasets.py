@@ -373,13 +373,19 @@ class SCGMChallenge2DTrain(MRI2DSegmentationDataset):
 
         for site_id in self.site_ids:
             for subj_id in self.subj_ids:
-                for rater_id in self.rater_ids:
+                if len(self.rater_ids) > 0:
+                    for rater_id in self.rater_ids:
+                        input_filename = self._build_train_input_filename(site_id, subj_id)
+                        gt_filename = self._build_train_input_filename(site_id, subj_id, rater_id)
+
+                        input_filename = os.path.join(self.root_dir, input_filename)
+                        gt_filename = os.path.join(self.root_dir, gt_filename)
+
+                        self.filename_pairs.append((input_filename, gt_filename))
+                else:
                     input_filename = self._build_train_input_filename(site_id, subj_id)
-                    gt_filename = self._build_train_input_filename(site_id, subj_id, rater_id)
-
+                    gt_filename = None
                     input_filename = os.path.join(self.root_dir, input_filename)
-                    gt_filename = os.path.join(self.root_dir, gt_filename)
-
                     self.filename_pairs.append((input_filename, gt_filename))
 
         super().__init__(self.filename_pairs, slice_axis, cache,

@@ -215,6 +215,26 @@ class Normalize(MTTransform):
         return sample
 
 
+class NormalizeInstance(MTTransform):
+    """Normalize a tensor image with mean and standard deviation estimated
+    from the sample itself.
+
+    :param mean: mean value.
+    :param std: standard deviation value.
+    """
+    def __call__(self, sample):
+        input_data = sample['input']
+
+        mean, std = input_data.mean(), input_data.std()
+        input_data = F.normalize(input_data, [mean], [std])
+
+        rdict = {
+            'input': input_data,
+        }
+        sample.update(rdict)
+        return sample
+
+
 class RandomRotation(MTTransform):
     def __init__(self, degrees, resample=False,
                  expand=False, center=None,
@@ -404,8 +424,14 @@ class RandomTensorChannelShift(MTTransform):
         params = self.get_params(self.shift_range)
 
         if isinstance(input_data, list):
-            ret_input = [self.sample_augment(item, params)
-                         for item in input_data]
+            #ret_input = [self.sample_augment(item, params)
+            #             for item in input_data]
+
+            # Augment just the image, not the mask
+            # TODO: fix it later
+            ret_input = []
+            ret_input.append(self.sample_augment(input_data[0], params))
+            ret_input.append(input_data[1])
         else:
             ret_input = self.sample_augment(input_data, params)
 
