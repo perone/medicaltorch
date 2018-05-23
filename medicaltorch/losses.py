@@ -1,5 +1,5 @@
+import torch
 from torch.nn import Module
-
 
 def dice_loss(input, target):
     """Dice loss.
@@ -51,3 +51,20 @@ class MaskedDiceLoss(Module):
         dice = (2.0 * intersection + eps) / (union + eps)
 
         return - dice
+
+
+class ConfidentMSELoss(Module):
+    def __init__(self, threshold=0.96):
+        self.threshold = threshold
+        super().__init__()
+
+    def forward(self, input, target):
+        n = input.size(0)
+        conf_mask = torch.gt(target, self.threshold).float()
+        input_flat = input.view(n, -1)
+        target_flat = target.view(n, -1)
+        conf_mask_flat = conf_mask.view(n, -1)
+        diff = (input_flat - target_flat)**2
+        diff_conf = diff * conf_mask_flat
+        loss = diff_conf.mean()
+        return loss
