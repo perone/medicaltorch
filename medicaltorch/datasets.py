@@ -362,8 +362,9 @@ class SCGMChallenge2DTrain(MRI2DSegmentationDataset):
     def __init__(self, root_dir, slice_axis=2, site_ids=None,
                  subj_ids=None, rater_ids=None, cache=True,
                  transform=None, slice_filter_fn=None,
-                 canonical=False):
+                 canonical=False, labeled=True):
 
+        self.labeled = labeled
         self.root_dir = root_dir
         self.site_ids = site_ids or range(1, SCGMChallenge2DTrain.NUM_SITES + 1)
         self.subj_ids = subj_ids or range(1, SCGMChallenge2DTrain.NUM_SUBJECTS + 1)
@@ -381,11 +382,18 @@ class SCGMChallenge2DTrain(MRI2DSegmentationDataset):
                         input_filename = os.path.join(self.root_dir, input_filename)
                         gt_filename = os.path.join(self.root_dir, gt_filename)
 
+                        if not self.labeled:
+                            gt_filename = None
+
                         self.filename_pairs.append((input_filename, gt_filename))
                 else:
                     input_filename = self._build_train_input_filename(site_id, subj_id)
                     gt_filename = None
                     input_filename = os.path.join(self.root_dir, input_filename)
+
+                    if not self.labeled:
+                        gt_filename = None
+                        
                     self.filename_pairs.append((input_filename, gt_filename))
 
         super().__init__(self.filename_pairs, slice_axis, cache,
