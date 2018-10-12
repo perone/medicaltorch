@@ -6,7 +6,6 @@ Installation
 -------------------------------------------------------------------------------
 To install medicaltorch, use `pip` (recommended method) or `easy_install`::
 
-    # Install medicaltorch
     pip install medicaltorch
 
 Architecture
