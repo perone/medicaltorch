@@ -11,4 +11,4 @@ To install medicaltorch, use `pip` (recommended method) or `easy_install`::
 
 Architecture
 -------------------------------------------------------------------------------
-TODO
+Under construction.
