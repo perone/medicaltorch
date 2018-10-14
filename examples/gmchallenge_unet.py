@@ -104,7 +104,7 @@ def run_main():
             input_samples, gt_samples = batch["input"], batch["gt"]
 
             var_input = input_samples.cuda()
-            var_gt = gt_samples.cuda(async=True)
+            var_gt = gt_samples.cuda(non_blocking=True)
 
             preds = model(var_input)
 
