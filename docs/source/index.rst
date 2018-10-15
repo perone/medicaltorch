@@ -8,7 +8,7 @@
     :align: center
     :scale: 35%
 
-MedicalTorch is an open-source framework for pytorch, implemeting an extensive set
+MedicalTorch is an open-source framework for PyTorch, implementing an extensive set
 of loaders, pre-processors and datasets for medical imaging.
 
 .. toctree::
