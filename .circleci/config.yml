@@ -19,7 +19,9 @@ jobs:
           command: |
             python3 -m venv venv
             . venv/bin/activate
-            pip install -r requirements.txt -r test-requirements.txt 
+            pip install --upgrade pip
+            #pip install -r requirements.txt -r test-requirements.txt 
+            pip install .
 
       - save_cache:
           paths:
