@@ -14,7 +14,8 @@ jobs:
           - v1-dependencies-{{ checksum "requirements.txt" }}
           - v1-dependencies-
 
-      - run: ./misc/download_testdata.sh
+      # To be used later to download sample data for tests
+      # - run: ./misc/download_testdata.sh
 
       - run:
           name: install dependencies
