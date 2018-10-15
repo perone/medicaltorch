@@ -14,6 +14,8 @@ jobs:
           - v1-dependencies-{{ checksum "requirements.txt" }}
           - v1-dependencies-
 
+      - run: ./misc/download_testdata.sh
+
       - run:
           name: install dependencies
           command: |
@@ -33,7 +35,8 @@ jobs:
           command: |
             . venv/bin/activate
             mkdir test-reports
-            pytest --junitxml=test-reports/junit.xml
+            # Skip other tests for the moment, only run test_models.
+            pytest -v --junitxml=test-reports/junit.xml tests/test_models.py
 
       - store_artifacts:
           path: test-reports
