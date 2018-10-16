@@ -7,8 +7,7 @@ MedicalTorch is an open-source framework for PyTorch, implementing an extensive 
 of loaders, pre-processors and datasets for medical imaging.
 
 ## Getting Started
-- [Tutorial: Spinal Cord Gray Matter Segmentation (Google Colab)](https://colab.research.google.com/drive/1V516_8lzebSPw_ygZhJQLfbGedMDikPc)
-- [The API Reference](https://medicaltorch.readthedocs.io/en/stable/modules.html)
 - [Official Documentation](http://medicaltorch.readthedocs.io)
+- [External tutorial: Spinal Cord Gray Matter Segmentation (Google Colab)](https://colab.research.google.com/drive/1V516_8lzebSPw_ygZhJQLfbGedMDikPc)
+- [The API Reference](https://medicaltorch.readthedocs.io/en/stable/modules.html)
 
-## Framework still under development

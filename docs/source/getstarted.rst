@@ -8,9 +8,10 @@ To install MedicalTorch, use `pip` (recommended method) or `easy_install`::
 
     pip install medicaltorch
 
-Tutorial
+Tutorials
 -------------------------------------------------------------------------------
-This [notebook](https://colab.research.google.com/drive/1V516_8lzebSPw_ygZhJQLfbGedMDikPc) provides a walk-through on how to use medicaltorch for spinal cord gray matter segmentation. More tutorials are coming soon. 
+This `notebook <https://colab.research.google.com/drive/1V516_8lzebSPw_ygZhJQLfbGedMDikPc>`_ provides a walk-through on how to use medicaltorch for spinal cord gray matter segmentation. More tutorials are coming soon. 
+
 
 Architecture
 -------------------------------------------------------------------------------
