@@ -9,5 +9,5 @@ of loaders, pre-processors and datasets for medical imaging.
 ## Getting Started
 - [Official Documentation](http://medicaltorch.readthedocs.io)
 - [External tutorial: Spinal Cord Gray Matter Segmentation (Google Colab)](https://colab.research.google.com/drive/1V516_8lzebSPw_ygZhJQLfbGedMDikPc)
+- [Dataloader Tutorial](<https://github.com/perone/medicaltorch/tree/master/examples/Dataloaders_NIFTI.ipynb)
 - [The API Reference](https://medicaltorch.readthedocs.io/en/stable/modules.html)
-
