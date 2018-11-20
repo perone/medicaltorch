@@ -14,3 +14,7 @@ The example is described below:
 
 .. literalinclude:: ../../examples/gmchallenge_unet.py
    :language: python
+
+Dataloader Tutorial for NIFTI images
+--------------------------------------------------------------------------------
+The tutorial for creating a dataloader using medicaltorch can be found `here <https://github.com/perone/medicaltorch/tree/master/examples/Dataloaders_NIFTI.ipynb>`_ . 
