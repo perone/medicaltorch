@@ -1,3 +1,7 @@
+Contributors
+===============================================================================
+We are very thankful to all our contributors ! For a complete list of contributors, please see the official `Contributors list <https://github.com/perone/medicaltorch/graphs/contributors>`_ in the Github repository.
+
 Contribute or Report a bug
 ===============================================================================
 
