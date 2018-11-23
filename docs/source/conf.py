@@ -124,6 +124,7 @@ html_theme_options = {
     'github_repo': 'medicaltorch',
     'github_button': True,
     'github_banner': False,
+    'github_type': 'star',
     'logo_name': False,
 }
 
