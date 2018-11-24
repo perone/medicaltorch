@@ -2,9 +2,14 @@
 
 [![Documentation Status](https://readthedocs.org/projects/medicaltorch/badge/?version=latest)](http://medicaltorch.readthedocs.io/en/latest/?badge=latest) [![CircleCI](https://circleci.com/gh/perone/medicaltorch.svg?style=svg)](https://circleci.com/gh/perone/medicaltorch)
 
+[![DOI](https://zenodo.org/badge/123063153.svg)](https://zenodo.org/badge/latestdoi/123063153)
+
 # Welcome to MedicalTorch
 MedicalTorch is an open-source framework for PyTorch, implementing an extensive set
 of loaders, pre-processors and datasets for medical imaging.
+
+## Citing MedicalTorch
+Please cite this work if you found it useful for your research, use the [DOI provided](https://zenodo.org/badge/latestdoi/123063153) by Zenodo to cite this work.
 
 ## Getting Started
 - [Official Documentation](http://medicaltorch.readthedocs.io)
