@@ -262,3 +262,107 @@ class Unet(Module):
 
         return preds
 
+
+class DownConv3D(Module):
+    def __init__(self, in_feat, out_feat, drop_rate=0.4, bn_momentum=0.1):
+        super(DownConv3D, self).__init__()
+        self.conv1 = nn.Conv3d(in_feat, out_feat, kernel_size=3, stride=2, padding=1)
+        self.conv1_bn = nn.BatchNorm3d(out_feat, momentum=bn_momentum)
+        self.conv1_drop = nn.Dropout3d(drop_rate)
+        # self.conv2 = nn.Conv3d(out_feat, out_feat, kernel_size=3, stride=1, padding=1)
+        # self.conv2_bn = nn.BatchNorm3d(out_feat, momentum=bn_momentum)
+        # self.conv2_drop = nn.Dropout3d(drop_rate)
+
+    def forward(self, x):
+        x = F.relu(self.conv1(x))
+        x = self.conv1_bn(x)
+        x = self.conv1_drop(x)
+        #
+        # x = F.relu(self.conv2(x))
+        # x = self.conv2_bn(x)
+        # x = self.conv2_drop(x)
+        return x
+
+
+class UpConv3D(Module):
+    def __init__(self, in_feat, out_feat, drop_rate=0.4, bn_momentum=0.1):
+        super(UpConv3D, self).__init__()
+        self.up1 = nn.functional.interpolate
+        self.downconv = DownConv3D(in_feat, out_feat, drop_rate, bn_momentum)
+        self.downconv2 = DownConv3D(out_feat, out_feat, drop_rate, bn_momentum)
+        self.up2 = nn.functional.interpolate
+
+    def forward(self, x, y):
+        x = self.up1(x,scale_factor=4, mode='trilinear', align_corners=True) #Ajout align_corners
+        x = torch.cat([x, y], dim=1)
+        x = self.downconv(x)
+        x = self.up2(x,scale_factor=2, mode='trilinear', align_corners=True) #Ajout align_corners
+        return x
+
+
+class Unet3D(Module):
+    """
+        Not production proof, it's just a test
+    """
+    def __init__(self, drop_rate=0.4, bn_momentum=0.1):
+        super(Unet3D, self).__init__()
+
+        #Downsampling path
+        self.conv1 = DownConv3D(1, 4, drop_rate, bn_momentum)
+        self.mp1 = nn.MaxPool3d(2)
+
+        self.conv2 = DownConv3D(4, 8, drop_rate, bn_momentum)
+        self.mp2 = nn.MaxPool3d(2)
+
+        self.conv3 = DownConv3D(8, 8, drop_rate, bn_momentum)
+        # self.mp3 = nn.MaxPool3d(2)
+        #
+        # # Bottom
+        # self.conv4 = DownConv3D(32, 32, drop_rate, bn_momentum)
+        #
+        # #Upsampling path
+        # self.up1 = UpConv3D(64, 32, drop_rate, bn_momentum)
+        self.up2 = UpConv3D(16, 8, drop_rate, bn_momentum)
+        self.up3 = UpConv3D(12, 4, drop_rate, bn_momentum)
+        self.up4 = nn.functional.interpolate
+
+        self.conv9 = nn.Conv3d(4, 1, kernel_size=3, padding=1)
+
+    def forward(self, x, verbose=False):
+        if verbose : print('x ',x.shape)
+        x1 = self.conv1(x)
+        if verbose : print('x1 ',x1.shape)
+        x2 = self.mp1(x1)
+        if verbose : print('x2 ',x2.shape)
+
+        x3 = self.conv2(x2)
+        if verbose : print('x3 ',x3.shape)
+        x4 = self.mp2(x3)
+        if verbose : print('x4 ',x4.shape)
+
+        x5 = self.conv3(x4)
+        # print('x5 ',x5.shape)
+        # x6 = self.mp3(x5)
+        # print('x6 ',x6.shape)
+        # # Bottom
+        # x7 = self.conv4(x6)
+        # print('x7 ',x7.shape)
+
+        # # Up-sampling
+        # x8 = self.up1(x5, x4)
+        # print('x8 ',x8.shape)
+        x9 = self.up2(x5, x3)
+        if verbose : print('x9 ',x9.shape)
+        x10 = self.up3(x9, x1)
+        if verbose : print('x10 ',x10.shape)
+
+        x12 = self.conv9(x10)
+        if verbose : print('x12 ',x12.shape)
+
+        x11 = self.up4(x12,scale_factor=2, mode='trilinear', align_corners=True) #Ajout align_corners
+        if verbose : print('x11 ',x11.shape)
+
+        preds = torch.sigmoid(x11)
+        if verbose : print('preds ',preds.shape)
+
+        return preds
