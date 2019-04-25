@@ -186,7 +186,7 @@ class SegmentationPair2D(object):
             "input_metadata": input_meta_dict,
             "gt_metadata": gt_meta_dict,
         }
-        
+
         return dreturn
 
 
@@ -218,7 +218,7 @@ class MRI2DSegmentationDataset(Dataset):
             segpair = SegmentationPair2D(input_filename, gt_filename,
                                          self.cache, self.canonical)
             self.handlers.append(segpair)
-        
+
     def _prepare_indexes(self):
         for segpair in self.handlers:
             input_data_shape, _ = segpair.get_pair_shapes()
@@ -228,7 +228,7 @@ class MRI2DSegmentationDataset(Dataset):
                 if self.slice_filter_fn:
                     slice_pair = segpair.get_pair_slice(segpair_slice,
                                                         self.slice_axis)
-                    
+
                     filter_fn_ret = self.slice_filter_fn(slice_pair)
                     if not filter_fn_ret:
                         continue
@@ -246,9 +246,9 @@ class MRI2DSegmentationDataset(Dataset):
 
     def compute_mean_std(self, verbose=False):
         """Compute the mean and standard deviation of the entire dataset.
-        
+
         :param verbose: if True, it will show a progress bar.
-        :returns: tuple (mean, std dev) 
+        :returns: tuple (mean, std dev)
         """
         sum_intensities = 0.0
         numel = 0
@@ -308,6 +308,66 @@ class MRI2DSegmentationDataset(Dataset):
             'gt': gt_img,
             'input_metadata': pair_slice['input_metadata'],
             'gt_metadata': pair_slice['gt_metadata'],
+        }
+
+        if self.transform is not None:
+            data_dict = self.transform(data_dict)
+
+        return data_dict
+
+class MRI3DSegmentationDataset(Dataset):
+    """This is a generic class for 3D segmentation datasets.
+
+    :param filename_pairs: a list of tuples in the format (input filename,
+                           ground truth filename).
+    :param cache: if the data should be cached in memory or not.
+    :param transform: transformations to apply.
+    """
+    def __init__(self, filename_pairs, cache=True,
+                 transform=None, canonical=False):
+        self.filename_pairs = filename_pairs
+        self.handlers = []
+        self.indexes = []
+        self.transform = transform
+        self.cache = cache
+        self.canonical = canonical
+
+        self._load_filenames()
+        self._prepare_indexes()
+
+    def _load_filenames(self):
+        for input_filename, gt_filename in self.filename_pairs:
+            segpair = SegmentationPair2D(input_filename, gt_filename,
+                                         self.cache, self.canonical)
+            self.handlers.append(segpair)
+
+    def _prepare_indexes(self):
+        for segpair in self.handlers:
+            self.indexes.append(segpair)
+
+    def set_transform(self, transform):
+        """This method will replace the current transformation for the
+        dataset.
+
+        :param transform: the new transformation
+        """
+        self.transform = transform
+
+    def __len__(self):
+        """Return the dataset size."""
+        return len(self.indexes)
+
+    def __getitem__(self, index):
+        """Return the specific index pair slices (input, ground truth).
+
+        :param index: slice index.
+        """
+        segpair = self.indexes[index]
+        input_img, gt_img = segpair.get_pair_data()
+
+        data_dict = {
+            'input': input_img,
+            'gt': gt_img
         }
 
         if self.transform is not None:
@@ -394,7 +454,7 @@ class SCGMChallenge2DTrain(MRI2DSegmentationDataset):
 
                     if not self.labeled:
                         gt_filename = None
-                        
+
                     self.filename_pairs.append((input_filename, gt_filename))
 
         super().__init__(self.filename_pairs, slice_axis, cache,
@@ -496,4 +556,3 @@ def mt_collate(batch):
         return [mt_collate(samples) for samples in transposed]
 
     return batch
-
