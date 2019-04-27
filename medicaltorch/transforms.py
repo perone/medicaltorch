@@ -63,7 +63,6 @@ class ToTensor(MTTransform):
                     ret_gt = F.to_tensor(gt_data)
 
                 rdict['gt'] = ret_gt
-
         sample.update(rdict)
         return sample
 
@@ -161,12 +160,14 @@ class CenterCrop2D(MTTransform):
         self.propagate_params(sample, params)
 
         input_data = F.center_crop(input_data, self.size)
+        #input_data = F.resize(input_data, 64)
         rdict['input'] = input_data
 
         if self.labeled:
             gt_data = sample['gt']
             gt_metadata = sample['gt_metadata']
             gt_data = F.center_crop(gt_data, self.size)
+            #gt_data = F.resize(gt_data, 64)
             gt_metadata["__centercrop"] = (fh, fw, w, h)
             rdict['gt'] = gt_data
 
@@ -195,7 +196,7 @@ class CenterCrop2D(MTTransform):
 
 class Normalize(MTTransform):
     """Normalize a tensor image with mean and standard deviation.
-    
+
     :param mean: mean value.
     :param std: standard deviation value.
     """
@@ -277,7 +278,60 @@ class RandomRotation(MTTransform):
         sample.update(rdict)
         return sample
 
-    
+class RandomRotation3D(MTTransform):
+    def __init__(self, degrees, resample=False,
+                 expand=False, center=None,
+                 labeled=True):
+        if isinstance(degrees, numbers.Number):
+            if degrees < 0:
+                raise ValueError("If degrees is a single number, it must be positive.")
+            self.degrees = (-degrees, degrees)
+        else:
+            if len(degrees) != 4:
+                raise ValueError("If degrees is a sequence, it must be of len 4 (minX,maxX,minY,maxY).")
+            self.degrees = degrees
+
+        self.resample = resample
+        self.expand = expand
+        self.center = center
+        self.labeled = labeled
+
+    @staticmethod
+    def get_params(degrees):
+        angle = np.random.uniform(degrees[0], degrees[1])
+        return angle
+
+    def __call__(self, sample):
+        rdict = {}
+        input_data = sample['input']
+        if len(sample['input'].shape) != 3:
+            raise ValueError("Input of RandomRotation3D should be a 3 dimensionnal tensor.")
+        angle = self.get_params(self.degrees)
+
+        input_rotated = np.zeros(input_data.shape)
+        input_rotated2 = np.zeros(input_data.shape)
+        # Rotate in axial
+        for x in range(input_data.shape[2]):
+            input_rotated[:,:,x] = F.rotate(Image.fromarray(input_data[:,:,x], mode='F'), angle,
+                                  self.resample, self.expand,
+                                  self.center)
+        for y in range(input_rotated.shape[1]):
+            input_rotated2[:,y,:] = F.rotate(Image.fromarray(input_rotated[:,y,:], mode='F'), angle,
+                                  self.resample, self.expand,
+                                  self.center)
+
+        rdict['input'] = input_rotated
+
+        # if self.labeled:
+        #     gt_data = sample['gt']
+        #     gt_data = F.rotate(gt_data, angle,
+        #                        self.resample, self.expand,
+        #                        self.center)
+        #     rdict['gt'] = gt_data
+
+        sample.update(rdict)
+        return sample
+
 class RandomAffine(MTTransform):
     def __init__(self, degrees, translate=None,
                  scale=None, shear=None,
@@ -402,7 +456,6 @@ class RandomAffine(MTTransform):
         sample.update(rdict)
         return sample
 
-
 class RandomTensorChannelShift(MTTransform):
     def __init__(self, shift_range):
         self.shift_range = shift_range
@@ -522,7 +575,7 @@ class ElasticTransform(MTTransform):
 
 
 # TODO: Resample should keep state after changing state.
-#       By changing pixel dimensions, we should be 
+#       By changing pixel dimensions, we should be
 #       able to return later to the original space.
 class Resample(MTTransform):
     def __init__(self, wspace, hspace,
