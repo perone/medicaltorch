@@ -279,7 +279,7 @@ class RandomRotation(MTTransform):
         return sample
 
 class RandomRotation3D(MTTransform):
-    def __init__(self, degrees, resample=False,
+    def __init__(self, degrees, axis=0, resample=False,
                  expand=False, center=None,
                  labeled=True):
         if isinstance(degrees, numbers.Number):
@@ -295,6 +295,7 @@ class RandomRotation3D(MTTransform):
         self.expand = expand
         self.center = center
         self.labeled = labeled
+        self.axis = axis
 
     @staticmethod
     def get_params(degrees):
@@ -307,27 +308,72 @@ class RandomRotation3D(MTTransform):
         if len(sample['input'].shape) != 3:
             raise ValueError("Input of RandomRotation3D should be a 3 dimensionnal tensor.")
         angle = self.get_params(self.degrees)
-
         input_rotated = np.zeros(input_data.shape)
-        input_rotated2 = np.zeros(input_data.shape)
-        # Rotate in axial
-        for x in range(input_data.shape[2]):
-            input_rotated[:,:,x] = F.rotate(Image.fromarray(input_data[:,:,x], mode='F'), angle,
-                                  self.resample, self.expand,
-                                  self.center)
-        for y in range(input_rotated.shape[1]):
-            input_rotated2[:,y,:] = F.rotate(Image.fromarray(input_rotated[:,y,:], mode='F'), angle,
-                                  self.resample, self.expand,
-                                  self.center)
+        gt_data = sample['gt'] if self.labeled else None
+        gt_rotated = np.zeros(gt_data.shape) if self.labeled else None
+        for x in range(input_data.shape[self.axis]):
+            if self.axis == 0:
+                input_rotated[x,:,:] = F.rotate(Image.fromarray(input_data[x,:,:], mode='F'), angle,
+                                        self.resample, self.expand,
+                                        self.center)
+                if self.labeled:
+                    gt_rotated[x,:,:] = F.rotate(Image.fromarray(gt_data[x,:,:], mode='F'), angle,
+                                        self.resample, self.expand,
+                                        self.center)
+
+            if self.axis == 1:
+                input_rotated[:,x,:] = F.rotate(Image.fromarray(input_data[:,x,:], mode='F'), angle,
+                                        self.resample, self.expand,
+                                        self.center)
+                if self.labeled:
+                    gt_rotated[:,x,:] = F.rotate(Image.fromarray(gt_data[:,x,:], mode='F'), angle,
+                                        self.resample, self.expand,
+                                        self.center)
+            if self.axis == 2:
+                input_rotated[:,:,x] = F.rotate(Image.fromarray(input_data[:,:,x], mode='F'), angle,
+                                        self.resample, self.expand,
+                                        self.center)
+                if self.labeled:
+                    gt_rotated[:,:,x] = F.rotate(Image.fromarray(gt_data[:,:,x], mode='F'), angle,
+                                        self.resample, self.expand,
+                                        self.center)
 
         rdict['input'] = input_rotated
+        if self.labeled : rdict['gt'] = gt_rotated
+        sample.update(rdict)
+        return sample
 
-        # if self.labeled:
-        #     gt_data = sample['gt']
-        #     gt_data = F.rotate(gt_data, angle,
-        #                        self.resample, self.expand,
-        #                        self.center)
-        #     rdict['gt'] = gt_data
+class RandomReverse3D(MTTransform):
+    def __init__(self, resample=False,
+                 expand=False, center=None,
+                 labeled=True):
+        self.resample = resample
+        self.expand = expand
+        self.center = center
+        self.labeled = labeled
+
+    @staticmethod
+    def get_params(degrees):
+        angle = np.random.uniform(degrees[0], degrees[1])
+        return angle
+
+    def __call__(self, sample):
+        rdict = {}
+        input_data = sample['input']
+        gt_data = sample['gt'] if self.labeled else None
+
+        if np.random.randint(2) == 1:
+            input_data = np.flip(input_data,axis=0).copy()
+            if self.labeled: gt_data = np.flip(gt_data,axis=0).copy()
+        if np.random.randint(2) == 1:
+            input_data = np.flip(input_data,axis=1).copy()
+            if self.labeled: gt_data = np.flip(gt_data,axis=1).copy()
+        if np.random.randint(2) == 1:
+            input_data = np.flip(input_data,axis=2).copy()
+            if self.labeled: gt_data = np.flip(gt_data,axis=2).copy()
+
+        rdict['input'] = input_data
+        if self.labeled : rdict['gt'] = gt_data
 
         sample.update(rdict)
         return sample
