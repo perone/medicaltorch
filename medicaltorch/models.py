@@ -263,106 +263,97 @@ class Unet(Module):
         return preds
 
 
-class DownConv3D(Module):
-    def __init__(self, in_feat, out_feat, drop_rate=0.4, bn_momentum=0.1):
-        super(DownConv3D, self).__init__()
-        self.conv1 = nn.Conv3d(in_feat, out_feat, kernel_size=3, stride=2, padding=1)
-        self.conv1_bn = nn.BatchNorm3d(out_feat, momentum=bn_momentum)
-        self.conv1_drop = nn.Dropout3d(drop_rate)
-        # self.conv2 = nn.Conv3d(out_feat, out_feat, kernel_size=3, stride=1, padding=1)
-        # self.conv2_bn = nn.BatchNorm3d(out_feat, momentum=bn_momentum)
-        # self.conv2_drop = nn.Dropout3d(drop_rate)
+class UNet3D(nn.Module):
+    #https://arxiv.org/pdf/1606.06650.pdf
+    def __init__(self, in_channel, n_classes):
+        self.in_channel = in_channel
+        self.n_classes = n_classes
+        super(UNet3D, self).__init__()
+        self.ec0 = self.down_conv(self.in_channel, 32, bias=False, batchnorm=False)
+        self.ec1 = self.down_conv(32, 64, bias=False, batchnorm=False)
+        self.ec2 = self.down_conv(64, 64, bias=False, batchnorm=False)
+        self.ec3 = self.down_conv(64, 128, bias=False, batchnorm=False)
+        self.ec4 = self.down_conv(128, 128, bias=False, batchnorm=False)
+        self.ec5 = self.down_conv(128, 256, bias=False, batchnorm=False)
+        self.ec6 = self.down_conv(256, 256, bias=False, batchnorm=False)
+        self.ec7 = self.down_conv(256, 512, bias=False, batchnorm=False)
+
+        self.pool0 = nn.MaxPool3d(2)
+        self.pool1 = nn.MaxPool3d(2)
+        self.pool2 = nn.MaxPool3d(2)
+
+        self.dc9 = self.up_conv(512, 512, kernel_size=2, stride=2, bias=False)
+        self.dc8 = self.down_conv(256 + 512, 256, bias=False)
+        self.dc7 = self.down_conv(256, 256, bias=False)
+        self.dc6 = self.up_conv(256, 256, kernel_size=2, stride=2, bias=False)
+        self.dc5 = self.down_conv(128 + 256, 128, bias=False)
+        self.dc4 = self.down_conv(128, 128, bias=False)
+        self.dc3 = self.up_conv(128, 128, kernel_size=2, stride=2, bias=False)
+        self.dc2 = self.down_conv(64 + 128, 64, bias=False)
+        self.dc1 = self.down_conv(64, 64, kernel_size=3, stride=1, padding=1, bias=False)
+        self.dc0 = self.down_conv(64, n_classes, kernel_size=1, stride=1, padding=0, bias=False)
+
+
+    def down_conv(self, in_channels, out_channels, kernel_size=3, stride=1, padding=1,
+                bias=True, batchnorm=False):
+        if batchnorm:
+            layer = nn.Sequential(
+                nn.Conv3d(in_channels, out_channels, kernel_size, stride=stride, padding=padding, bias=bias),
+                nn.BatchNorm2d(out_channels),
+                nn.LeakyReLU())
+        else:
+            layer = nn.Sequential(
+                nn.Conv3d(in_channels, out_channels, kernel_size, stride=stride, padding=padding, bias=bias),
+                nn.LeakyReLU())
+        return layer
+
+
+    def up_conv(self, in_channels, out_channels, kernel_size=2, stride=2, padding=0,
+                output_padding=0, bias=True):
+        layer = nn.Sequential(
+            nn.ConvTranspose3d(in_channels, out_channels, kernel_size, stride=stride,
+                               padding=padding, output_padding=output_padding, bias=bias),
+            nn.LeakyReLU())
+        return layer
 
     def forward(self, x):
-        x = F.relu(self.conv1(x))
-        x = self.conv1_bn(x)
-        x = self.conv1_drop(x)
-        #
-        # x = F.relu(self.conv2(x))
-        # x = self.conv2_bn(x)
-        # x = self.conv2_drop(x)
-        return x
+        e0 = self.ec0(x)
+        syn0 = self.ec1(e0)
+        e1 = self.pool0(syn0)
+        e2 = self.ec2(e1)
+        syn1 = self.ec3(e2)
+        del e0, e1, e2
 
+        e3 = self.pool1(syn1)
+        e4 = self.ec4(e3)
+        syn2 = self.ec5(e4)
+        del e3, e4
 
-class UpConv3D(Module):
-    def __init__(self, in_feat, out_feat, drop_rate=0.4, bn_momentum=0.1):
-        super(UpConv3D, self).__init__()
-        self.up1 = nn.functional.interpolate
-        self.downconv = DownConv3D(in_feat, out_feat, drop_rate, bn_momentum)
-        self.downconv2 = DownConv3D(out_feat, out_feat, drop_rate, bn_momentum)
-        self.up2 = nn.functional.interpolate
+        e5 = self.pool2(syn2)
+        e6 = self.ec6(e5)
+        e7 = self.ec7(e6)
+        del e5, e6
 
-    def forward(self, x, y):
-        x = self.up1(x,scale_factor=4, mode='trilinear', align_corners=True) #Ajout align_corners
-        x = torch.cat([x, y], dim=1)
-        x = self.downconv(x)
-        x = self.up2(x,scale_factor=2, mode='trilinear', align_corners=True) #Ajout align_corners
-        return x
+        d9 = torch.cat((self.dc9(e7), syn2), dim=1)
+        del e7, syn2
 
+        d8 = self.dc8(d9)
+        d7 = self.dc7(d8)
+        del d9, d8
 
-class Unet3D(Module):
-    """
-        Not production proof, it's just a test
-    """
-    def __init__(self, drop_rate=0.4, bn_momentum=0.1):
-        super(Unet3D, self).__init__()
+        d6 = torch.cat((self.dc6(d7), syn1), dim=1)
+        del d7, syn1
 
-        #Downsampling path
-        self.conv1 = DownConv3D(1, 4, drop_rate, bn_momentum)
-        self.mp1 = nn.MaxPool3d(2)
+        d5 = self.dc5(d6)
+        d4 = self.dc4(d5)
+        del d6, d5
 
-        self.conv2 = DownConv3D(4, 8, drop_rate, bn_momentum)
-        self.mp2 = nn.MaxPool3d(2)
+        d3 = torch.cat((self.dc3(d4), syn0), dim=1)
+        del d4, syn0
 
-        self.conv3 = DownConv3D(8, 8, drop_rate, bn_momentum)
-        # self.mp3 = nn.MaxPool3d(2)
-        #
-        # # Bottom
-        # self.conv4 = DownConv3D(32, 32, drop_rate, bn_momentum)
-        #
-        # #Upsampling path
-        # self.up1 = UpConv3D(64, 32, drop_rate, bn_momentum)
-        self.up2 = UpConv3D(16, 8, drop_rate, bn_momentum)
-        self.up3 = UpConv3D(12, 4, drop_rate, bn_momentum)
-        self.up4 = nn.functional.interpolate
+        d2 = self.dc2(d3)
+        d1 = self.dc1(d2)
+        del d3, d2
 
-        self.conv9 = nn.Conv3d(4, 1, kernel_size=3, padding=1)
-
-    def forward(self, x, verbose=False):
-        if verbose : print('x ',x.shape)
-        x1 = self.conv1(x)
-        if verbose : print('x1 ',x1.shape)
-        x2 = self.mp1(x1)
-        if verbose : print('x2 ',x2.shape)
-
-        x3 = self.conv2(x2)
-        if verbose : print('x3 ',x3.shape)
-        x4 = self.mp2(x3)
-        if verbose : print('x4 ',x4.shape)
-
-        x5 = self.conv3(x4)
-        # print('x5 ',x5.shape)
-        # x6 = self.mp3(x5)
-        # print('x6 ',x6.shape)
-        # # Bottom
-        # x7 = self.conv4(x6)
-        # print('x7 ',x7.shape)
-
-        # # Up-sampling
-        # x8 = self.up1(x5, x4)
-        # print('x8 ',x8.shape)
-        x9 = self.up2(x5, x3)
-        if verbose : print('x9 ',x9.shape)
-        x10 = self.up3(x9, x1)
-        if verbose : print('x10 ',x10.shape)
-
-        x12 = self.conv9(x10)
-        if verbose : print('x12 ',x12.shape)
-
-        x11 = self.up4(x12,scale_factor=2, mode='trilinear', align_corners=True) #Ajout align_corners
-        if verbose : print('x11 ',x11.shape)
-
-        preds = torch.sigmoid(x11)
-        if verbose : print('preds ',preds.shape)
-
-        return preds
+        d0 = self.dc0(d1)
+        return d0
