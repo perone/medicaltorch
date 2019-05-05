@@ -255,7 +255,7 @@ class NormalizeInstance3D(MTTransform):
             }
             sample.update(rdict)
         return sample
-        
+
 class RandomRotation(MTTransform):
     def __init__(self, degrees, resample=False,
                  expand=False, center=None,
@@ -299,21 +299,15 @@ class RandomRotation(MTTransform):
         return sample
 
 class RandomRotation3D(MTTransform):
-    def __init__(self, degrees, axis=0, resample=False,
-                 expand=False, center=None,
-                 labeled=True):
+    def __init__(self, degrees, axis=0, labeled=True):
         if isinstance(degrees, numbers.Number):
             if degrees < 0:
                 raise ValueError("If degrees is a single number, it must be positive.")
             self.degrees = (-degrees, degrees)
         else:
-            if len(degrees) != 4:
-                raise ValueError("If degrees is a sequence, it must be of len 4 (minX,maxX,minY,maxY).")
+            if len(degrees) != 2:
+                raise ValueError("If degrees is a sequence, it must be of len 2.")
             self.degrees = degrees
-
-        self.resample = resample
-        self.expand = expand
-        self.center = center
         self.labeled = labeled
         self.axis = axis
 
@@ -328,9 +322,9 @@ class RandomRotation3D(MTTransform):
         if len(sample['input'].shape) != 3:
             raise ValueError("Input of RandomRotation3D should be a 3 dimensionnal tensor.")
         angle = self.get_params(self.degrees)
-        input_rotated = np.zeros(input_data.shape)
+        input_rotated = np.zeros(input_data.shape, dtype=input_data.dtype)
         gt_data = sample['gt'] if self.labeled else None
-        gt_rotated = np.zeros(gt_data.shape) if self.labeled else None
+        gt_rotated = np.zeros(gt_data.shape, dtype=gt_data.dtype) if self.labeled else None
         for x in range(input_data.shape[self.axis]):
             if self.axis == 0:
                 input_rotated[x,:,:] = F.rotate(Image.fromarray(input_data[x,:,:], mode='F'), angle,
@@ -340,7 +334,6 @@ class RandomRotation3D(MTTransform):
                     gt_rotated[x,:,:] = F.rotate(Image.fromarray(gt_data[x,:,:], mode='F'), angle,
                                         self.resample, self.expand,
                                         self.center)
-
             if self.axis == 1:
                 input_rotated[:,x,:] = F.rotate(Image.fromarray(input_data[:,x,:], mode='F'), angle,
                                         self.resample, self.expand,
@@ -364,24 +357,13 @@ class RandomRotation3D(MTTransform):
         return sample
 
 class RandomReverse3D(MTTransform):
-    def __init__(self, resample=False,
-                 expand=False, center=None,
-                 labeled=True):
-        self.resample = resample
-        self.expand = expand
-        self.center = center
+    def __init__(self, labeled=True):
         self.labeled = labeled
-
-    @staticmethod
-    def get_params(degrees):
-        angle = np.random.uniform(degrees[0], degrees[1])
-        return angle
 
     def __call__(self, sample):
         rdict = {}
         input_data = sample['input']
         gt_data = sample['gt'] if self.labeled else None
-
         if np.random.randint(2) == 1:
             input_data = np.flip(input_data,axis=0).copy()
             if self.labeled: gt_data = np.flip(gt_data,axis=0).copy()
