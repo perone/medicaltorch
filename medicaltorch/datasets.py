@@ -315,6 +315,7 @@ class MRI2DSegmentationDataset(Dataset):
 
         return data_dict
 
+
 class MRI3DSegmentationDataset(Dataset):
     """This is a generic class for 3D segmentation datasets.
 
@@ -338,8 +339,7 @@ class MRI3DSegmentationDataset(Dataset):
         for input_filename, gt_filename in self.filename_pairs:
             segpair = SegmentationPair2D(input_filename, gt_filename,
                                          self.cache, self.canonical)
-            input_img, gt_img = segpair.get_pair_data()
-            self.handlers.append((input_img, gt_img))
+            self.handlers.append(segpair)
 
     def set_transform(self, transform):
         """This method will replace the current transformation for the
@@ -358,16 +358,13 @@ class MRI3DSegmentationDataset(Dataset):
 
         :param index: slice index.
         """
-        input_img, gt_img = self.handlers[index]
-
+        input_img, gt_img = self.handlers[index].get_pair_data()
         data_dict = {
             'input': input_img,
             'gt': gt_img
         }
-
         if self.transform is not None:
             data_dict = self.transform(data_dict)
-
         return data_dict
 
 class MRI3DLowerVolumeSegmentationDataset(MRI3DSegmentationDataset):
@@ -376,15 +373,22 @@ class MRI3DLowerVolumeSegmentationDataset(MRI3DSegmentationDataset):
         super().__init__(filename_pairs, cache, transform, canonical)
         self.length=length
         self.padding=padding
+        self._prepare_indexes()
 
     def _prepare_indexes(self):
         length = self.length
         padding = self.padding
         for i in range(0, len(self.handlers)):
-            shape = self.handlers[i]
-            for x in range(length[0]+padding, shape[0]-padding, length[0]):
-                for y in range(length[1]+padding, shape[1]-padding, length[1]):
-                    for z in range(length[2]+padding, shape[2]-padding, length[2]):
+            input_img, _ = self.handlers[i].get_pair_data()
+            shape = input_img.shape
+            if (shape[0] - 2 * padding) % length[0] != 0 \
+                    or (shape[1] - 2 * padding) % length[1] != 0 \
+                    or (shape[2] - 2 * padding) % length[2] != 0 :
+                print('Input shape of each dimension should be a multiple of length plus 2 * padding',shape)
+
+            for x in range(length[0]+padding, shape[0]-padding+1, length[0]):
+                for y in range(length[1]+padding, shape[1]-padding+1, length[1]):
+                    for z in range(length[2]+padding, shape[2]-padding+1, length[2]):
                         self.indexes.append({
                             'x_min': x-length[0]-padding,
                             'x_max': x+padding,
@@ -393,23 +397,30 @@ class MRI3DLowerVolumeSegmentationDataset(MRI3DSegmentationDataset):
                             'z_min': z-length[2]-padding,
                             'z_max': z+padding,
                             'handler_index':i})
-                        print(self.indexes[len(self.indexes)-1])
 
     def __len__(self):
         """Return the dataset size."""
         return len(self.indexes)
 
     def __getitem__(self, index):
-        data_dict = super().__getitem__(self.indexes[index]['handler_index'])
-        print(data_dict['input'].shape)
         coord = self.indexes[index]
+        input_img, gt_img = self.handlers[coord['handler_index']].get_pair_data()
+        data_dict = {
+            'input': input_img,
+            'gt': gt_img
+        }
         data_dict['input'] = data_dict['input'][coord['x_min']:coord['x_max'],
-                                                coord['y_min']:coord['y_max'],
-                                                coord['z_min']:coord['z_max']]
+                                coord['y_min']:coord['y_max'],
+                                coord['z_min']:coord['z_max']]
         data_dict['gt'] = data_dict['gt'][coord['x_min']:coord['x_max'],
                                           coord['y_min']:coord['y_max'],
                                           coord['z_min']:coord['z_max']]
 
+        if self.transform is not None:
+            data_dict = self.transform(data_dict)
+
+        data_dict['input'] = data_dict['input'][None,:,:,:]
+        data_dict['gt'] = data_dict['gt'][None,:,:,:]
         return data_dict
 
 
