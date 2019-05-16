@@ -264,7 +264,17 @@ class Unet(Module):
 
 
 class UNet3D(nn.Module):
-    #https://arxiv.org/pdf/1606.06650.pdf
+    """A reference of 3D U-Net model.
+
+    Implementation origin :
+    https://github.com/shiba24/3d-unet/blob/master/pytorch/model.py
+
+    .. seealso::
+        Özgün Çiçek, Ahmed Abdulkadir, Soeren S. Lienkamp, Thomas Brox
+        and Olaf Ronneberger (2016). 3D U-Net: Learning Dense Volumetric
+        Segmentation from Sparse Annotation
+        ArXiv link: https://arxiv.org/pdf/1606.06650.pdf
+    """
     def __init__(self, in_channel, n_classes):
         self.in_channel = in_channel
         self.n_classes = n_classes
