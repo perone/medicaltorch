@@ -198,11 +198,11 @@ class DownConv(Module):
 class UpConv(Module):
     def __init__(self, in_feat, out_feat, drop_rate=0.4, bn_momentum=0.1):
         super(UpConv, self).__init__()
-        self.up1 = nn.Upsample(scale_factor=2, mode='bilinear')
+        self.up1 = nn.functional.interpolate
         self.downconv = DownConv(in_feat, out_feat, drop_rate, bn_momentum)
 
     def forward(self, x, y):
-        x = self.up1(x)
+        x = self.up1(x, scale_factor=2, mode='bilinear', align_corners=True)
         x = torch.cat([x, y], dim=1)
         x = self.downconv(x)
         return x
@@ -258,7 +258,7 @@ class Unet(Module):
         x10 = self.up3(x9, x1)
 
         x11 = self.conv9(x10)
-        preds = F.sigmoid(x11)
+        preds = torch.sigmoid(x11)
 
         return preds
 
