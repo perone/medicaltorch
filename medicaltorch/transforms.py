@@ -160,14 +160,12 @@ class CenterCrop2D(MTTransform):
         self.propagate_params(sample, params)
 
         input_data = F.center_crop(input_data, self.size)
-        #input_data = F.resize(input_data, 64)
         rdict['input'] = input_data
 
         if self.labeled:
             gt_data = sample['gt']
             gt_metadata = sample['gt_metadata']
             gt_data = F.center_crop(gt_data, self.size)
-            #gt_data = F.resize(gt_data, 64)
             gt_metadata["__centercrop"] = (fh, fw, w, h)
             rdict['gt'] = gt_data
 
