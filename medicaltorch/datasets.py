@@ -186,7 +186,7 @@ class SegmentationPair2D(object):
             "input_metadata": input_meta_dict,
             "gt_metadata": gt_meta_dict,
         }
-        
+
         return dreturn
 
 
@@ -218,7 +218,7 @@ class MRI2DSegmentationDataset(Dataset):
             segpair = SegmentationPair2D(input_filename, gt_filename,
                                          self.cache, self.canonical)
             self.handlers.append(segpair)
-        
+
     def _prepare_indexes(self):
         for segpair in self.handlers:
             input_data_shape, _ = segpair.get_pair_shapes()
@@ -228,7 +228,7 @@ class MRI2DSegmentationDataset(Dataset):
                 if self.slice_filter_fn:
                     slice_pair = segpair.get_pair_slice(segpair_slice,
                                                         self.slice_axis)
-                    
+
                     filter_fn_ret = self.slice_filter_fn(slice_pair)
                     if not filter_fn_ret:
                         continue
@@ -246,9 +246,9 @@ class MRI2DSegmentationDataset(Dataset):
 
     def compute_mean_std(self, verbose=False):
         """Compute the mean and standard deviation of the entire dataset.
-        
+
         :param verbose: if True, it will show a progress bar.
-        :returns: tuple (mean, std dev) 
+        :returns: tuple (mean, std dev)
         """
         sum_intensities = 0.0
         numel = 0
@@ -312,6 +312,143 @@ class MRI2DSegmentationDataset(Dataset):
 
         if self.transform is not None:
             data_dict = self.transform(data_dict)
+
+        return data_dict
+
+
+class MRI3DSegmentationDataset(Dataset):
+    """This is a generic class for 3D segmentation datasets.
+
+    :param filename_pairs: a list of tuples in the format (input filename,
+                           ground truth filename).
+    :param cache: if the data should be cached in memory or not.
+    :param transform: transformations to apply.
+    """
+    def __init__(self, filename_pairs, cache=True,
+                 transform=None, canonical=False):
+        self.filename_pairs = filename_pairs
+        self.handlers = []
+        self.indexes = []
+        self.transform = transform
+        self.cache = cache
+        self.canonical = canonical
+
+        self._load_filenames()
+
+    def _load_filenames(self):
+        for input_filename, gt_filename in self.filename_pairs:
+            segpair = SegmentationPair2D(input_filename, gt_filename,
+                                         self.cache, self.canonical)
+            self.handlers.append(segpair)
+
+    def set_transform(self, transform):
+        """This method will replace the current transformation for the
+        dataset.
+
+        :param transform: the new transformation
+        """
+        self.transform = transform
+
+    def __len__(self):
+        """Return the dataset size."""
+        return len(self.handlers)
+
+    def __getitem__(self, index):
+        """Return the specific index pair volume (input, ground truth).
+
+        :param index: volume index.
+        """
+        input_img, gt_img = self.handlers[index].get_pair_data()
+        data_dict = {
+            'input': input_img,
+            'gt': gt_img
+        }
+        if self.transform is not None:
+            data_dict = self.transform(data_dict)
+        return data_dict
+
+class MRI3DSubVolumeSegmentationDataset(MRI3DSegmentationDataset):
+    """This is a generic class for 3D segmentation datasets. This class overload
+    MRI3DSegmentationDataset by splitting the initials volumes in several
+    subvolumes. Each subvolumes will be of the sizes of the length parameter.
+
+    This class also implement a padding parameter, which overlap the borders of
+    the different (the borders of the upper-volume aren't superposed). For
+    example if you have a length of (32,32,32) and a padding of 16, your final
+    subvolumes will have a total lengths of (64,64,64) with the voxels contained
+    outside the core volume and which are shared with the other subvolumes.
+
+    Be careful, the input's dimensions should be compatible with the given
+    lengths and paddings. This class doesn't handle missing dimensions.
+
+    :param filename_pairs: a list of tuples in the format (input filename,
+                           ground truth filename).
+    :param cache: if the data should be cached in memory or not.
+    :param transform: transformations to apply.
+    :param length: size of each dimensions of the subvolumes
+    :param padding: size of the overlapping per subvolume and dimensions
+    """
+    def __init__(self, filename_pairs, cache=True,
+                 transform=None, canonical=False, length=(64,64,64), padding=0):
+        super().__init__(filename_pairs, cache, transform, canonical)
+        self.length=length
+        self.padding=padding
+        self._prepare_indexes()
+
+    def _prepare_indexes(self):
+        length = self.length
+        padding = self.padding
+
+        for i in range(0, len(self.handlers)):
+            input_img, _ = self.handlers[i].get_pair_data()
+            shape = input_img.shape
+            if (shape[0] - 2 * padding) % length[0] != 0 \
+                    or (shape[1] - 2 * padding) % length[1] != 0 \
+                    or (shape[2] - 2 * padding) % length[2] != 0 :
+                raise RuntimeError('Input shape of each dimension should be a \
+                                    multiple of length plus 2 * padding')
+
+            for x in range(length[0]+padding, shape[0]-padding+1, length[0]):
+                for y in range(length[1]+padding, shape[1]-padding+1, length[1]):
+                    for z in range(length[2]+padding, shape[2]-padding+1, length[2]):
+                        self.indexes.append({
+                            'x_min': x-length[0]-padding,
+                            'x_max': x+padding,
+                            'y_min': y-length[1]-padding,
+                            'y_max': y+padding,
+                            'z_min': z-length[2]-padding,
+                            'z_max': z+padding,
+                            'handler_index':i})
+
+    def __len__(self):
+        """Return the dataset size. The number of subvolumes."""
+        return len(self.indexes)
+
+    def __getitem__(self, index):
+        """Return the specific index pair subvolume (input, ground truth).
+
+        :param index: subvolume index.
+        """
+        coord = self.indexes[index]
+        input_img, gt_img = self.handlers[coord['handler_index']].get_pair_data()
+        data_dict = {
+            'input': input_img,
+            'gt': gt_img
+        }
+
+        data_dict['input'] = data_dict['input'][coord['x_min']:coord['x_max'],
+                                coord['y_min']:coord['y_max'],
+                                coord['z_min']:coord['z_max']]
+
+        data_dict['gt'] = data_dict['gt'][coord['x_min']:coord['x_max'],
+                                          coord['y_min']:coord['y_max'],
+                                          coord['z_min']:coord['z_max']]
+
+        if self.transform is not None:
+            data_dict = self.transform(data_dict)
+
+        data_dict['input'] = data_dict['input'][None,:,:,:]
+        data_dict['gt'] = data_dict['gt'][None,:,:,:]
 
         return data_dict
 
@@ -394,7 +531,7 @@ class SCGMChallenge2DTrain(MRI2DSegmentationDataset):
 
                     if not self.labeled:
                         gt_filename = None
-                        
+
                     self.filename_pairs.append((input_filename, gt_filename))
 
         super().__init__(self.filename_pairs, slice_axis, cache,
@@ -496,4 +633,3 @@ def mt_collate(batch):
         return [mt_collate(samples) for samples in transposed]
 
     return batch
-
