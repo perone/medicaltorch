@@ -701,7 +701,7 @@ class Clahe(MTTransform):
     def __call__(self, sample):
         if not isinstance(sample, np.ndarray):
             raise TypeError("Input sample must be a numpy array.")
-        input_sample = np.copy(sample)
+        input_sample = np.copy(np.asarray(sample))
         array = skimage.exposure.equalize_adapthist(
             input_sample,
             kernel_size=self.kernel_size,
@@ -715,7 +715,7 @@ class HistogramClipping(MTTransform):
         self.max_percentile = max_percentile
 
     def __call__(self, sample):
-        array = np.copy(sample)
+        array = np.copy(np.asarray(sample))
         percentile1 = np.percentile(array, self.min_percentile)
         percentile2 = np.percentile(array, self.max_percentile)
         array[array <= percentile1] = percentile1
