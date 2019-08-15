@@ -691,33 +691,56 @@ class AdditiveGaussianNoise(MTTransform):
         return sample
 
 class Clahe(MTTransform):
-    def __init__(self, clip_limit=3.0, kernel_size=(8, 8)):
+    def __init__(self, clip_limit=3.0, kernel_size=(8, 8), labeled=False):
         # Default values are based upon the following paper:
         # https://arxiv.org/abs/1804.09400 (3D Consistent Cardiac Segmentation)
-
+        self.labeled = labeled
         self.clip_limit = clip_limit
         self.kernel_size = kernel_size
     
-    def __call__(self, sample):
-        if not isinstance(sample, np.ndarray):
-            raise TypeError("Input sample must be a numpy array.")
-        input_sample = np.copy(np.asarray(sample))
-        array = skimage.exposure.equalize_adapthist(
-            input_sample,
+    def apply_clahe_to_array(self, array):
+        return skimage.exposure.equalize_adapthist(
+            array,
             kernel_size=self.kernel_size,
             clip_limit=self.clip_limit
         )
-        return array
-
-class HistogramClipping(MTTransform):
-    def __init__(self, min_percentile=5.0, max_percentile=95.0):
-        self.min_percentile = min_percentile
-        self.max_percentile = max_percentile
 
     def __call__(self, sample):
-        array = np.copy(np.asarray(sample))
+        if not isinstance(sample, np.ndarray):
+            raise TypeError("Input sample must be a numpy array.")
+        
+        processed_dict = {}
+        input_sample = np.copy(np.asarray(sample['input']))
+        processed_dict['input'] = self.apply_clahe_to_array(input_sample)
+
+        if self.labeled:
+            gt_sample = np.copy(np.asarray(sample['gt']))
+            processed_dict['gt'] = self.apply_clahe_to_array(gt_sample)
+
+        sample.update(processed_dict)
+        return sample
+
+
+class HistogramClipping(MTTransform):
+    def __init__(self, min_percentile=5.0, max_percentile=95.0, labeled=False):
+        self.min_percentile = min_percentile
+        self.max_percentile = max_percentile
+        self.labeled = labeled
+
+    def apply_histclip_to_array(self, array):
         percentile1 = np.percentile(array, self.min_percentile)
         percentile2 = np.percentile(array, self.max_percentile)
         array[array <= percentile1] = percentile1
         array[array >= percentile2] = percentile2
         return array
+
+    def __call__(self, sample):
+        
+        input_sample = np.copy(np.asarray(sample['input']))
+        input_sample = apply_histclip_to_array(input_sample)
+
+        if self.labeled:
+            gt_sample = np.copy(np.asarray(sample['gt']))
+            processed_dict['gt'] = self.apply_clahe_to_array(gt_sample)
+
+        return input_sample
