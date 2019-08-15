@@ -224,7 +224,7 @@ class NormalizeInstance(MTTransform):
     """
     def __call__(self, sample):
         input_data = sample['input']
-
+        input_data = np.copy(np.asarray(input_data))
         mean, std = input_data.mean(), input_data.std()
         input_data = F.normalize(input_data, [mean], [std])
 
