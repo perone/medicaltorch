@@ -776,15 +776,16 @@ class SquarePadding(MTTransform):
 
     @staticmethod
     def squarify(array, val=0):
-        a, b = array.shape
-        abs_difference = np.abs(a - b)
+        _channels, height, width = array.shape
+        abs_difference = np.abs(height - width)
         pad1 = np.ceil(abs_difference / 2)
         pad2 = np.floor(abs_difference / 2)
-        if a > b:
+        if height > width:
             padding=((0,0),(pad1, pad2))
         else:
             padding=((pad1, pad2),(0,0))
-        return np.pad(array, padding,mode='constant',constant_values=val)
+
+        return np.pad(array, padding, mode='constant', constant_values=val)
 
     def __call__(self, sample):
         processed_dict = {}
