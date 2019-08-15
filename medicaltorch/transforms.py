@@ -709,6 +709,7 @@ class Clahe(MTTransform):
         )
         return array
 
+
 class HistogramClipping(MTTransform):
     def __init__(self, min_percentile=5.0, max_percentile=95.0):
         self.min_percentile = min_percentile
