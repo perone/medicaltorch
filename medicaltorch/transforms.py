@@ -224,8 +224,7 @@ class NormalizeInstance(MTTransform):
     """
     def __call__(self, sample):
         input_data = sample['input']
-        input_data_np = np.copy(np.asarray(input_data))
-        mean, std = input_data_np.mean(), input_data_np.std()
+        mean, std = input_data.mean(), input_data.std()
         input_data = F.normalize(input_data, [mean], [std])
 
         rdict = {
@@ -720,6 +719,8 @@ class Clahe(MTTransform):
             gt_sample = np.copy(np.asarray(sample['gt']))
             processed_dict['gt'] = self.apply_clahe_to_array(gt_sample)
 
+        if isinstance(sample['input'], torch.tensor):
+            
         sample.update(processed_dict)
         return sample
 
@@ -807,4 +808,4 @@ class ResizeWithSquarePadding(MTTransform):
         
         sample.update(processed_dict)
         return sample
- 
+  
