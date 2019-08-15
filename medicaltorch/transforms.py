@@ -699,14 +699,17 @@ class Clahe(MTTransform):
         self.kernel_size = kernel_size
     
     def apply_clahe_to_array(self, array):
-        # NOTE Pytorch standard Image format is [C, W, H]
-        array = np.moveaxis(array, 0, -1) 
+        # NOTE: Skimage grayscale images don't have channels
+        array = np.squeeze(array)
         array = skimage.exposure.equalize_adapthist(
             array,
             kernel_size=self.kernel_size,
             clip_limit=self.clip_limit
         )
-        return np.moveaxis(array, -1, 0)
+
+        # NOTE: Undo the transforms done previously
+        array = np.expand_dims(array, axis=0)
+        return array
 
     def __call__(self, sample):
         processed_dict = {}
@@ -742,6 +745,26 @@ class HistogramClipping(MTTransform):
         if self.labeled:
             gt_sample = np.copy(np.asarray(sample['gt']))
             processed_dict['gt'] = self.apply_histclip_to_array(gt_sample)
+
+        sample.update(processed_dict)
+        return sample
+
+
+class RangeMappingMRI2D(MTTransform):
+    def __init__(self, max_value=1.0):
+        self.max = max_value
+
+    def __call__(self, sample):
+        processed_dict = {}
+
+        input_image = sample['input']
+        max_pixel_value = input_image.max()
+        multiplier = 1.0
+
+        if max_pixel_value > 0:
+            multiplier = self.max_value / max_pixel_value
+
+        processed_dict['input'] = input_image * multiplier
 
         sample.update(processed_dict)
         return sample
