@@ -735,12 +735,13 @@ class HistogramClipping(MTTransform):
         return array
 
     def __call__(self, sample):
-        
+        processed_dict = {}
         input_sample = np.copy(np.asarray(sample['input']))
-        input_sample = self.apply_histclip_to_array(input_sample)
+        processed_dict['input'] = self.apply_histclip_to_array(input_sample)
 
         if self.labeled:
             gt_sample = np.copy(np.asarray(sample['gt']))
-            processed_dict['gt'] = self.apply_clahe_to_array(gt_sample)
+            processed_dict['gt'] = self.apply_histclip_to_array(gt_sample)
 
-        return input_sample
+        sample.update(processed_dict)
+        return sample
