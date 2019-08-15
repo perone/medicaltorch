@@ -699,11 +699,14 @@ class Clahe(MTTransform):
         self.kernel_size = kernel_size
     
     def apply_clahe_to_array(self, array):
-        return skimage.exposure.equalize_adapthist(
+        # NOTE Pytorch standard Image format is [C, W, H]
+        array = np.moveaxis(array, 0, -1) 
+        array = skimage.exposure.equalize_adapthist(
             array,
             kernel_size=self.kernel_size,
             clip_limit=self.clip_limit
         )
+        return np.moveaxis(array, -1, 0)
 
     def __call__(self, sample):
         processed_dict = {}
