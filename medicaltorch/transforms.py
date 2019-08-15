@@ -719,8 +719,6 @@ class Clahe(MTTransform):
             gt_sample = np.copy(np.asarray(sample['gt']))
             processed_dict['gt'] = self.apply_clahe_to_array(gt_sample)
 
-        if isinstance(sample['input'], torch.tensor):
-            
         sample.update(processed_dict)
         return sample
 
