@@ -784,17 +784,17 @@ class SquarePadding(MTTransform):
             padding=((0,0),(pad1, pad2))
         else:
             padding=((pad1, pad2),(0,0))
-        return np.pad(M,padding,mode='constant',constant_values=val)
+        return np.pad(array, padding,mode='constant',constant_values=val)
 
     def __call__(self, sample):
         processed_dict = {}
 
         input_sample = np.asarray(sample['input'])
-        processed_dict['input'] = squarify(input_sample)
+        processed_dict['input'] = self.squarify(input_sample)
 
         if self.labeled:
             gt_sample = np.asarray(sample['gt'])
-            processed_dict['input'] = squarify(gt_sample)
+            processed_dict['input'] = self.squarify(gt_sample)
         
         sample.update(processed_dict)
         return sample
