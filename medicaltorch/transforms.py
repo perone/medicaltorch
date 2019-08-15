@@ -748,3 +748,23 @@ class HistogramClipping(MTTransform):
 
         sample.update(processed_dict)
         return sample
+
+
+class RangeMappingMRI2D(MTTransform):
+    def __init__(self, max_value=1.0):
+        self.max = max_value
+
+    def __call__(self, sample):
+        processed_dict = {}
+
+        input_image = sample['input']
+        max_pixel_value = input_image.max()
+        multiplier = 1.0
+
+        if max_pixel_value > 0:
+            multiplier = self.max_value / max_pixel_value
+
+        processed_dict['input'] = input_image * multiplier
+
+        sample.update(processed_dict)
+        return sample
