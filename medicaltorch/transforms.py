@@ -706,9 +706,6 @@ class Clahe(MTTransform):
         )
 
     def __call__(self, sample):
-        if not isinstance(sample, np.ndarray):
-            raise TypeError("Input sample must be a numpy array.")
-        
         processed_dict = {}
         input_sample = np.copy(np.asarray(sample['input']))
         processed_dict['input'] = self.apply_clahe_to_array(input_sample)
