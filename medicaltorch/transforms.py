@@ -758,7 +758,7 @@ class RangeMappingMRI2D(MTTransform):
         processed_dict = {}
 
         input_image = sample['input']
-        max_pixel_value = input_image.max()
+        max_pixel_value = np.asarray(input_image).max()
         multiplier = 1.0
 
         if max_pixel_value > 0:
