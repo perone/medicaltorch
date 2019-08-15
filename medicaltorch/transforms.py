@@ -1,4 +1,5 @@
 import skimage
+import cv2
 import numpy as np
 import numbers
 import torchvision.transforms.functional as F
@@ -695,20 +696,10 @@ class Clahe(MTTransform):
         # Default values are based upon the following paper:
         # https://arxiv.org/abs/1804.09400 (3D Consistent Cardiac Segmentation)
         self.labeled = labeled
-        self.clip_limit = clip_limit
-        self.kernel_size = kernel_size
+        self.clahe = cv2.createCLAHE(clipLimit=clip_limit, tileGridSize=kernel_size)
     
     def apply_clahe_to_array(self, array):
-        # NOTE: Skimage grayscale images don't have channels
-        array = np.squeeze(array)
-        array = skimage.exposure.equalize_adapthist(
-            array,
-            kernel_size=self.kernel_size,
-            clip_limit=self.clip_limit
-        )
-
-        # NOTE: Undo the transforms done previously
-        array = np.expand_dims(array, axis=0)
+        array = clahe.apply(array)
         return array
 
     def __call__(self, sample):

@@ -5,3 +5,4 @@ torch>=0.4.0
 torchvision>=0.2.1
 tqdm>=4.23.0
 scikit-image==0.15.0
+opencv-python>=4.1.0
