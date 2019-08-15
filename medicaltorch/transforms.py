@@ -778,8 +778,8 @@ class SquarePadding(MTTransform):
     def squarify(array, val=0):
         _channels, height, width = array.shape
         abs_difference = np.abs(height - width)
-        pad1 = np.ceil(abs_difference / 2)
-        pad2 = np.floor(abs_difference / 2)
+        pad1 = np.ceil(abs_difference / 2).astype('int')
+        pad2 = np.floor(abs_difference / 2).astype('int')
         if height > width:
             padding=((0,0),(pad1, pad2))
         else:
