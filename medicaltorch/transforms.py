@@ -699,7 +699,7 @@ class Clahe(MTTransform):
         self.clahe = cv2.createCLAHE(clipLimit=clip_limit, tileGridSize=kernel_size)
     
     def apply_clahe_to_array(self, array):
-        array = clahe.apply(array)
+        array = self.clahe.apply(array)
         return array
 
     def __call__(self, sample):
