@@ -768,3 +768,33 @@ class RangeMappingMRI2D(MTTransform):
 
         sample.update(processed_dict)
         return sample
+
+
+class SquarePadding(MTTransform):
+    def __init__(self, labeled=True):
+        self.labeled = labeled
+
+    def squarify(self, M, val):
+        a, b = M.shape
+        abs_difference = np.abs(a - b)
+        pad1 = np.ceil(abs_difference / 2)
+        pad2 = np.floor(abs_difference / 2)
+        if a > b:
+            padding=((0,0),(pad1, pad2))
+        else:
+            padding=((pad1, pad2),(0,0))
+        return np.pad(M,padding,mode='constant',constant_values=val)
+
+    def __call__(self, sample):
+        processed_dict = {}
+
+        input_sample = np.asarray(sample['input'])
+        processed_dict['input'] = self.squarify(input_sample)
+
+        if self.labeled:
+            gt_sample = np.asarray(sample['gt'])
+            processed_dict['input'] = self.squarify(gt_sample)
+        
+        sample.update(processed_dict)
+        return sample
+        
