@@ -770,33 +770,41 @@ class RangeMappingMRI2D(MTTransform):
         return sample
 
 
-class SquarePadding(MTTransform):
-    def __init__(self, labeled=True):
+class ResizeWithSquarePadding(MTTransform):
+    def __init__(self, output_size, labeled=True):
         self.labeled = labeled
+        self.output_size = output_size
 
     @staticmethod
     def squarify(array, val=0):
-        _channels, height, width = array.shape
+        height, width = array.shape
         abs_difference = np.abs(height - width)
         pad1 = np.ceil(abs_difference / 2).astype('int')
         pad2 = np.floor(abs_difference / 2).astype('int')
         if height > width:
-            padding=((0,0),(pad1, pad2))
+            padding=((0, 0), (pad1, pad2))
         else:
-            padding=((pad1, pad2),(0,0))
-
-        return np.pad(array, padding, mode='constant', constant_values=val)
+            padding=((pad1, pad2), (0, 0))
+        
+        padded_array = np.pad(array, padding, mode='constant', constant_values=val)
+        return padded_array
 
     def __call__(self, sample):
         processed_dict = {}
 
         input_sample = np.asarray(sample['input'])
-        processed_dict['input'] = self.squarify(input_sample)
+        input_sample = np.squeeze(input_sample)
+        padded_input = self.squarify(input_sample)
+        padded_input.resize((self.output_size, self.output_size))
+        processed_dict['input'] = np.expand_dims(padded_input, axis=-1)
 
         if self.labeled:
             gt_sample = np.asarray(sample['gt'])
-            processed_dict['input'] = self.squarify(gt_sample)
+            gt_sample = np.squeeze(gt_sample)
+            padded_input = self.squarify(gt_sample)
+            padded_input.resize((self.output_size, self.output_size))
+            processed_dict['gt'] = np.expand_dims(padded_input, axis=-1)
         
         sample.update(processed_dict)
         return sample
-        
+ 
