@@ -1,3 +1,4 @@
+import cv2 
 import numpy as np
 import numbers
 import torchvision.transforms.functional as F
@@ -688,3 +689,14 @@ class AdditiveGaussianNoise(MTTransform):
 
         sample.update(rdict)
         return sample
+
+class Clahe(MTTransform):
+    def __init__(self, clip_limit=3.0, tile_grid_size=(8, 8)):
+        self.clahe = cv2.createCLAHE(clipLimit=clip_limit, tileGridSize=tile_grid_size)
+    
+    def __call__(self, sample):
+        if not isinstance(sample, np.ndarray):
+            raise TypeError("Input sample must be a numpy array.")
+        input_sample = np.copy(sample)
+        array = self.clahe.apply(sample)
+        return array
