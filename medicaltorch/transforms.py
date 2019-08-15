@@ -700,3 +700,16 @@ class Clahe(MTTransform):
         input_sample = np.copy(sample)
         array = self.clahe.apply(sample)
         return array
+
+class HistogramClipping(MTTransform):
+    def __init__(self, min_percentile=5.0, max_percentile=95.0):
+        self.min_percentile = min_percentile
+        self.max_percentile = max_percentile
+
+    def __call__(self, sample):
+        array = np.copy(sample)
+        percentile1 = np.percentile(array, self.min_percentile)
+        percentile2 = np.percentile(array, self.max_percentile)
+        array[array <= percentile1] = percentile1
+        array[array >= percentile2] = percentile2
+        return array
