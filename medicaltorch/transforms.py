@@ -777,20 +777,18 @@ class ResizeWithSquarePadding(MTTransform):
         padding = (pad1, pad2, pad1, pad2)
         padded_image = ImageOps.expand(pil_image, padding)
         return padded_image
-        
+
 
     def __call__(self, sample):
         processed_dict = {}
 
-        input_sample = np.asarray(sample['input'])
-        padded_input = self.squarify(input_sample)
-        padded_input.resize((self.output_size, self.output_size))
+        padded_input = self.squarify(sample['input'])
+        padded_input = padded_input.resize((self.output_size, self.output_size), resample=Image.ANTIALIAS)
         processed_dict['input'] = padded_input
 
         if self.labeled:
-            gt_sample = np.asarray(sample['gt'])
-            gt_padded_input = self.squarify(gt_sample)
-            gt_padded_input.resize((self.output_size, self.output_size))
+            gt_padded_input = self.squarify(sample['gt'])
+            gt_padded_input.resize((self.output_size, self.output_size), resample=Image.ANTIALIAS)
             processed_dict['gt'] = gt_padded_input
         
         sample.update(processed_dict)
