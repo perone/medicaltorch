@@ -769,19 +769,15 @@ class ResizeWithSquarePadding(MTTransform):
         self.labeled = labeled
         self.output_size = output_size
 
-    @staticmethod
-    def squarify(array, val=0):
-        height, width = array.shape
+    def squarify(self, pil_image):
+        height, width = pil_image.size
         abs_difference = np.abs(height - width)
         pad1 = np.ceil(abs_difference / 2).astype('int')
         pad2 = np.floor(abs_difference / 2).astype('int')
-        if height > width:
-            padding=((0, 0), (pad1, pad2))
-        else:
-            padding=((pad1, pad2), (0, 0))
+        padding = (pad1, pad2, pad1, pad2)
+        padded_image = ImageOps.expand(pil_image, padding)
+        return padded_image
         
-        padded_array = np.pad(array, padding, mode='constant', constant_values=val)
-        return padded_array
 
     def __call__(self, sample):
         processed_dict = {}
