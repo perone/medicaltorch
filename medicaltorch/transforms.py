@@ -707,7 +707,7 @@ class Clahe(MTTransform):
         )
 
         # NOTE: Undo the transforms done previously
-        array = np.expand_dims(array, axis=0)
+        array = np.expand_dims(array, axis=-1)
         return array
 
     def __call__(self, sample):
