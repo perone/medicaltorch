@@ -787,10 +787,9 @@ class ResizeWithSquarePadding(MTTransform):
         processed_dict = {}
 
         input_sample = np.asarray(sample['input'])
-        input_sample = np.squeeze(input_sample)
         padded_input = self.squarify(input_sample)
         padded_input.resize((self.output_size, self.output_size))
-        processed_dict['input'] = np.expand_dims(padded_input, axis=-1)
+        processed_dict['input'] = padded_input
 
         if self.labeled:
             gt_sample = np.asarray(sample['gt'])
