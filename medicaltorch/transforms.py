@@ -698,16 +698,11 @@ class Clahe(MTTransform):
         self.kernel_size = kernel_size
     
     def apply_clahe_to_array(self, array):
-        # NOTE: Skimage grayscale images don't have channels
-        array = np.squeeze(array)
         array = skimage.exposure.equalize_adapthist(
             array,
             kernel_size=self.kernel_size,
             clip_limit=self.clip_limit
         )
-
-        # NOTE: Undo the transforms done previously
-        array = np.expand_dims(array, axis=-1)
         return array
 
     def __call__(self, sample):
