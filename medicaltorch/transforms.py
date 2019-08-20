@@ -788,7 +788,7 @@ class ResizeWithSquarePadding(MTTransform):
 
         if self.labeled:
             gt_padded_input = self.squarify(sample['gt'])
-            gt_padded_input.resize((self.output_size, self.output_size), resample=Image.ANTIALIAS)
+            gt_padded_input = gt_padded_input.resize((self.output_size, self.output_size), resample=Image.ANTIALIAS)
             processed_dict['gt'] = gt_padded_input
         
         sample.update(processed_dict)
