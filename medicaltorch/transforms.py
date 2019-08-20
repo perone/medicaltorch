@@ -3,7 +3,7 @@ import numpy as np
 import numbers
 import torchvision.transforms.functional as F
 from torchvision import transforms
-from PIL import Image
+from PIL import Image, ImageOps
 
 from scipy.ndimage.interpolation import map_coordinates
 from scipy.ndimage.filters import gaussian_filter
