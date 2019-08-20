@@ -793,4 +793,4 @@ class ResizeWithSquarePadding(MTTransform):
         
         sample.update(processed_dict)
         return sample
-  
+   
