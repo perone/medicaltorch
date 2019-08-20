@@ -3,7 +3,7 @@ import numpy as np
 import numbers
 import torchvision.transforms.functional as F
 from torchvision import transforms
-from PIL import Image
+from PIL import Image, ImageOps
 
 from scipy.ndimage.interpolation import map_coordinates
 from scipy.ndimage.filters import gaussian_filter
@@ -769,34 +769,28 @@ class ResizeWithSquarePadding(MTTransform):
         self.labeled = labeled
         self.output_size = output_size
 
-    @staticmethod
-    def squarify(array, val=0):
-        height, width = array.shape
+    def squarify(self, pil_image):
+        height, width = pil_image.size
         abs_difference = np.abs(height - width)
         pad1 = np.ceil(abs_difference / 2).astype('int')
         pad2 = np.floor(abs_difference / 2).astype('int')
-        if height > width:
-            padding=((0, 0), (pad1, pad2))
-        else:
-            padding=((pad1, pad2), (0, 0))
-        
-        padded_array = np.pad(array, padding, mode='constant', constant_values=val)
-        return padded_array
+        padding = (pad1, pad2, pad1, pad2)
+        padded_image = ImageOps.expand(pil_image, padding)
+        return padded_image
+
 
     def __call__(self, sample):
         processed_dict = {}
 
-        input_sample = np.asarray(sample['input'])
-        padded_input = self.squarify(input_sample)
-        padded_input.resize((self.output_size, self.output_size))
+        padded_input = self.squarify(sample['input'])
+        padded_input = padded_input.resize((self.output_size, self.output_size), resample=Image.ANTIALIAS)
         processed_dict['input'] = padded_input
 
         if self.labeled:
-            gt_sample = np.asarray(sample['gt'])
-            gt_padded_input = self.squarify(gt_sample)
-            gt_padded_input.resize((self.output_size, self.output_size))
+            gt_padded_input = self.squarify(sample['gt'])
+            gt_padded_input = gt_padded_input.resize((self.output_size, self.output_size), resample=Image.ANTIALIAS)
             processed_dict['gt'] = gt_padded_input
         
         sample.update(processed_dict)
         return sample
-  
+   
