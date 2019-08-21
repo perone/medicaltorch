@@ -740,11 +740,11 @@ class HistogramClipping(MTTransform):
             raise NotImplementedError("Only implemented for two-dimensional grayscale images.")
         
         input_sample = np.copy(np.asarray(sample['input']))
-        processed_dict['input'] = self.apply_histclip_to_array(input_sample)
+        processed_dict['input'] = Image.fromarray(self.apply_histclip_to_array(input_sample))
 
         if self.labeled:
             gt_sample = np.copy(np.asarray(sample['gt']))
-            processed_dict['gt'] = self.apply_histclip_to_array(gt_sample)
+            processed_dict['gt'] = Image.fromarray(self.apply_histclip_to_array(gt_sample))
 
         sample.update(processed_dict)
         return sample
@@ -763,16 +763,16 @@ class RangeMappingMRI2D(MTTransform):
 
         processed_dict = {}
 
-        input_image = sample['input']
-        max_pixel_value = np.asarray(input_image).max()
+        input_image = np.asarray(sample['input'])
+        max_pixel_value = input_image.max()
         multiplier = 1.0
-
         if max_pixel_value > 0:
             multiplier = self.max_value / max_pixel_value
 
-        processed_dict['input'] = input_image * multiplier
-
+        output_pil_image = Image.fromarray(input_image * multiplier, mode='F')
+        processed_dict['input'] = output_pil_image
         sample.update(processed_dict)
+
         return sample
 
 
@@ -806,7 +806,7 @@ class ResizeWithSquarePadding(MTTransform):
 
         if self.labeled:
             gt_padded_input = self.squarify(sample['gt'])
-            gt_padded_input = gt_padded_input.resize((self.output_size, self.output_size), resample=Image.ANTIALIAS)
+            gt_padded_input.resize((self.output_size, self.output_size), resample=Image.ANTIALIAS)
             processed_dict['gt'] = gt_padded_input
         
         sample.update(processed_dict)
