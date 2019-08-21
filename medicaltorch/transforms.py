@@ -713,14 +713,16 @@ class Clahe(MTTransform):
             raise NotImplementedError("Only implemented for two-dimensional grayscale images.")
 
         processed_dict = {}
-        numpyed_input_sample = np.copy(np.asarray(sample['input']))
+        numpyed_input_sample = np.array(sample['input'])
         clahed_input_sample = self.apply_clahe_to_array(numpyed_input_sample)
-        processed_dict['input'] = Image.fromarray(clahed_input_sample, mode = 'F')
+        # NOTE: `mode` arg is not specified since Image.fromarray infers it from the output of skimage
+        processed_dict['input'] = Image.fromarray(clahed_input_sample) 
 
         if self.labeled:
-            gt_sample = np.copy(np.asarray(sample['gt']))
+            gt_sample = np.array(sample['gt'])
             gt_clahed_input_sample = self.apply_clahe_to_array(gt_sample)
-            processed_dict['gt'] = Image.fromarray(gt_clahed_input_sample, mode = 'F')
+            # NOTE: `mode` arg is not specified since Image.fromarray infers it from the output of skimage
+            processed_dict['gt'] = Image.fromarray(gt_clahed_input_sample)
  
         sample.update(processed_dict)
         return sample
