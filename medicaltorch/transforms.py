@@ -732,13 +732,13 @@ class HistogramClipping(MTTransform):
         return array
 
     def __call__(self, sample):
-        processed_dict = {}
         if not isinstance(sample['input'], Image.Image):
             raise NotImplementedError("Input must be instance PIL image.")
             
         if len(sample['input'].size) > 2: 
             raise NotImplementedError("Only implemented for two-dimensional grayscale images.")
         
+        processed_dict = {}
         input_sample = np.copy(np.asarray(sample['input']))
         processed_dict['input'] = Image.fromarray(self.apply_histclip_to_array(input_sample))
 
