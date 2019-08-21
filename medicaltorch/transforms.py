@@ -706,14 +706,22 @@ class Clahe(MTTransform):
         return array
 
     def __call__(self, sample):
+        if not isinstance(sample['input'], Image.Image):
+            raise NotImplementedError("Input must be instance PIL image.") 
+             
+        if len(sample['input'].size) > 2: 
+            raise NotImplementedError("Only implemented for two-dimensional grayscale images.")
+
         processed_dict = {}
-        input_sample = np.copy(np.asarray(sample['input']))
-        processed_dict['input'] = self.apply_clahe_to_array(input_sample)
+        numpyed_input_sample = np.copy(np.asarray(sample['input']))
+        clahed_input_sample = self.apply_clahe_to_array(numpyed_input_sample)
+        processed_dict['input'] = Image.fromarray(clahed_input_sample, mode = 'F')
 
         if self.labeled:
             gt_sample = np.copy(np.asarray(sample['gt']))
-            processed_dict['gt'] = self.apply_clahe_to_array(gt_sample)
-
+            gt_clahed_input_sample = self.apply_clahe_to_array(gt_sample)
+            processed_dict['gt'] = Image.fromarray(gt_clahed_input_sample, mode = 'F')
+ 
         sample.update(processed_dict)
         return sample
 
