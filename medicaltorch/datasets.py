@@ -66,23 +66,25 @@ class SegmentationPair2D(object):
     :param input_filename: the input filename (supported by nibabel).
     :param gt_filename: the ground-truth filename.
     :param metadata: metadata related to image
-    :param contrast: contrast of image (e.g. T2w)
+    :param modality: contrast of image (e.g. T2w)
     :param cache: if the data should be cached in memory or not.
     :param canonical: canonical reordering of the volume axes.
     """
 
-    def __init__(self, input_filename, gt_filename, metadata, contrast, cache=True, canonical=False):
+    def __init__(self, input_filename, gt_filename, metadata=None, modality=None, cache=True, canonical=False):
 
         self.input_filename = input_filename
         self.gt_filename = gt_filename
+        self.metadata = metadata
+        self.modality = modality
         self.canonical = canonical
         self.cache = cache
 
         self.input_handle = []
         for input_file in self.input_filename:
-            input = nib.load(input_file)
-            self.input_handle.append(input)
-            if len(input.shape) > 3:
+            input_img = nib.load(input_file)
+            self.input_handle.append(input_img)
+            if len(input_img.shape) > 3:
                 raise RuntimeError("4-dimensional volumes not supported.")
 
         # Unlabeled data (inference time)
@@ -106,12 +108,13 @@ class SegmentationPair2D(object):
             if self.gt_handle is not None:
                 self.gt_handle = nib.as_closest_canonical(self.gt_handle)
 
-        self.metadata = []
-        for data in metadata:
-            data["input_filename"] = input_filename
-            data["gt_filename"] = gt_filename
-            data["contrast"] = contrast
-            self.metadata.append(data)
+        if self.metadata:
+            self.metadata = []
+            for data in metadata:
+                data["input_filename"] = input_filename
+                data["gt_filename"] = gt_filename
+                data["contrast"] = modality if self.modality else None
+                self.metadata.append(data)
 
     def get_pair_shapes(self):
         """Return the tuple (input, ground truth) representing both the input
@@ -214,10 +217,11 @@ class SegmentationPair2D(object):
             "gt_metadata": gt_meta_dict,
         }
 
-        for idx, metadata in enumerate(self.metadata):
-            metadata["slice_index"] = slice_index
-            self.metadata[idx] = metadata
-            dreturn["input_metadata"][idx]["bids_metadata"] = metadata
+        if self.metadata:
+            for idx, metadata in enumerate(self.metadata):
+                metadata["slice_index"] = slice_index
+                self.metadata[idx] = metadata
+                dreturn["input_metadata"][idx]["bids_metadata"] = metadata
 
         return dreturn
 
@@ -225,148 +229,51 @@ class SegmentationPair2D(object):
 class MRI2DSegmentationDataset(Dataset):
     """This is a generic class for 2D (slice-wise) segmentation datasets.
 
-    :param filename_pairs: a list of tuples in the format (input filename,
+    :param filename_pairs: a list of tuples in the format (input filename list containing all modalities,
                            ground truth filename).
     :param slice_axis: axis to make the slicing (default axial).
     :param cache: if the data should be cached in memory or not.
     :param transform: transformations to apply.
     """
-    def __init__(self, root_dir, subject_lst, target_suffix, contrast_lst, contrast_balance={},
-                 slice_axis=2, cache=True, transform=None, metadata_choice=False, slice_filter_fn=None,
-                 canonical=False, roi_suffix=None, multichannel=False):
+    def __init__(self, filename_pairs, slice_axis=2, cache=True,
+                 transform=None, slice_filter_fn=None, canonical=False, multichannel=False):
         self.handlers = []
         self.indexes = []
+        self.filename_pairs = filename_pairs
         self.transform = transform
         self.cache = cache
         self.slice_axis = slice_axis
         self.slice_filter_fn = slice_filter_fn
         self.canonical = canonical
-        self.multichannel = multichannel
-
-        self.bids_ds = bids.BIDS(root_dir)
-        self.filename_pairs = []
-        if metadata_choice == 'mri_params':
-            self.metadata = {"FlipAngle": [], "RepetitionTime": [], "EchoTime": [], "Manufacturer": []}
-
-        bids_subjects = [s for s in self.bids_ds.get_subjects() if s.record["subject_id"] in subject_lst]
-
-        # Create a list with the filenames for all contrasts and subjects
-        subjects_tot = []
-        for subject in bids_subjects:
-            subjects_tot.append(str(subject.record["absolute_path"]))
-
-        # Create a dictionary with the number of subjects for each contrast of contrast_balance
-        tot = {contrast: len([s for s in bids_subjects if s.record["modality"] == contrast]) for contrast in
-               contrast_balance.keys()}
-        # Create a counter that helps to balance the contrasts
-        c = {contrast: 0 for contrast in contrast_balance.keys()}
-
-        multichannel_subjects = {}
-        if multichannel:
-            multichannel_subjects = {subject: {"absolute_paths": [],
-                                               "target_path": None,
-                                               "metadata": [],
-                                               "modalities": [],
-                                               "roi_path": None} for subject in subject_lst}
-
-        for subject in tqdm(bids_subjects, desc="Loading dataset"):
-            if subject.record["modality"] in contrast_lst:
-
-                # Training & Validation: do not consider the contrasts over the threshold contained in contrast_balance
-                if subject.record["modality"] in contrast_balance.keys():
-                    c[subject.record["modality"]] = c[subject.record["modality"]] + 1
-                    if c[subject.record["modality"]] / tot[subject.record["modality"]] > contrast_balance[
-                        subject.record["modality"]]:
-                        continue
-
-                if not subject.has_derivative("labels"):
-                    print("Subject without derivative, skipping.")
-                    continue
-                derivatives = subject.get_derivatives("labels")
-                target_filename, roi_filename = None, None
-
-                for deriv in derivatives:
-                    if deriv.endswith(subject.record["modality"] + target_suffix + ".nii.gz"):
-                        target_filename = deriv
-                    if not (roi_suffix is None) and deriv.endswith(subject.record["modality"] + roi_suffix + ".nii.gz"):
-                        roi_filename = deriv
-
-                if (target_filename is None) or (not (roi_suffix is None) and (roi_filename is None)):
-                    continue
-
-                if not subject.has_metadata():
-                    print("Subject without metadata.")
-                    continue
-
-                metadata = subject.metadata()
-                if metadata_choice == 'mri_params':
-                    def _check_isMRIparam(mri_param_type, mri_param):
-                        if mri_param_type not in mri_param:
-                            print("{} without {}, skipping.".format(subject, mri_param_type))
-                            return False
-                        else:
-                            if mri_param_type == "Manufacturer":
-                                value = mri_param[mri_param_type]
-                            else:
-                                if isinstance(mri_param[mri_param_type], (int, float)):
-                                    value = float(mri_param[mri_param_type])
-                                else:  # eg multi-echo data have 3 echo times
-                                    value = np.mean([float(v) for v in mri_param[mri_param_type].split(',')])
-
-                            self.metadata[mri_param_type].append(value)
-                            return True
-
-                    if not all([_check_isMRIparam(m, metadata) for m in self.metadata.keys()]):
-                        continue
-
-                if multichannel:
-                    subj_id = subject.record["subject_id"]
-                    multichannel_subjects[subj_id]["absolute_paths"].append(subject.record.absolute_path)
-                    multichannel_subjects[subj_id]["target_path"] = target_filename
-                    multichannel_subjects[subj_id]["metadata"].append(subject.metadata())
-                    multichannel_subjects[subj_id]["modalities"].append(subject.record["modality"])
-                    multichannel_subjects[subj_id]["roi_path"] = roi_filename
-
-                else:
-                    self.filename_pairs.append(([subject.record.absolute_path],
-                                                target_filename, [metadata], [subject.record["modality"]],
-                                                roi_filename))
-
-        if multichannel:
-            for subject in multichannel_subjects.values():
-                if len(subject["absolute_paths"]):
-                    self.filename_pairs.append((subject["absolute_paths"], subject["target_path"], subject["metadata"],
-                                                subject["modalities"], subject["roi_path"]))
 
         self._load_filenames()
         self._prepare_indexes()
 
     def _load_filenames(self):
-        for input_filename, target_filename, bids_metadata, contrast, roi_filename in self.filename_pairs:
-            segpair = SegmentationPair2D(input_filename, target_filename,
-                                         bids_metadata, contrast, roi_filename)
-            roipair = SegmentationPair2D(input_filename, roi_filename,
-                                         bids_metadata, contrast)
-            self.handlers.append([segpair, roipair])
+        for input_filename, gt_filename in self.filename_pairs:
+            segpair = SegmentationPair2D(input_filename, gt_filename,
+                                         cache=self.cache, canonical=self.canonical)
+            self.handlers.append(segpair)
 
     def _prepare_indexes(self):
-        for seg_roi_pairs in self.handlers:
-            seg_pair, roi_pair = seg_roi_pairs
-            input_data_shape, _ = seg_pair.get_pair_shapes()
+        for segpair in self.handlers:
+            input_data_shape, _ = segpair.get_pair_shapes()
+            for segpair_slice in range(input_data_shape[self.slice_axis]):
 
-            for idx_pair_slice in range(input_data_shape[self.slice_axis]):
-                # filter empty roi slices
-                slice_roi_pair = roi_pair.get_pair_slice(idx_pair_slice, self.slice_axis)
-                if self.slice_filter_fn and slice_roi_pair['gt'] is not None:
-                    for slice in slice_roi_pair['input']:
-                        single_slice_pair = slice_roi_pair
+                # Check if slice pair should be used or not
+                if self.slice_filter_fn:
+                    slice_pair = segpair.get_pair_slice(segpair_slice,
+                                                        self.slice_axis)
+
+                    for slice in slice_pair['input']:
+                        single_slice_pair = slice_pair
                         single_slice_pair['input'] = slice
-                        filter_fn_ret_roi = self.slice_filter_fn(single_slice_pair)
+                        filter_fn_ret = self.slice_filter_fn(slice_pair)
 
-                    if (not filter_fn_ret_roi):
+                    if not filter_fn_ret:
                         continue
 
-                item = (seg_pair, roi_pair, idx_pair_slice)
+                item = (segpair, segpair_slice)
                 self.indexes.append(item)
 
     def set_transform(self, transform):
@@ -417,42 +324,34 @@ class MRI2DSegmentationDataset(Dataset):
         return len(self.indexes)
 
     def __getitem__(self, index):
-        """Return the specific index pair slices (input, target),
-                or (input, target, roi).
-                :param index: slice index.
-                """
-        segpair, roipair, pair_slice = self.indexes[index]
-        seg_pair_slice = segpair.get_pair_slice(pair_slice, self.slice_axis)
-        roi_pair_slice = roipair.get_pair_slice(pair_slice, self.slice_axis)
+        """Return the specific index pair slices (input, ground truth).
+
+        :param index: slice index.
+        """
+        segpair, segpair_slice = self.indexes[index]
+        pair_slice = segpair.get_pair_slice(segpair_slice,
+                                            self.slice_axis)
 
         input_tensors = []
         input_metadata = []
         data_dict = {}
-        for idx, input_slice in enumerate(seg_pair_slice["input"]):
+        for idx, input_slice in enumerate(pair_slice["input"]):
             # Consistency with torchvision, returning PIL Image
             # Using the "Float mode" of PIL, the only mode
             # supporting unbounded float32 values
             input_img = Image.fromarray(input_slice, mode='F')
 
             # Handle unlabeled data
-            if seg_pair_slice["gt"] is None:
+            if pair_slice["gt"] is None:
                 gt_img = None
             else:
-                gt_img = Image.fromarray(seg_pair_slice["gt"], mode='F')
-
-            # Handle cases where no ROI provided
-            if roi_pair_slice["gt"] is None:
-                roi_img = None
-            else:
-                roi_img = Image.fromarray(roi_pair_slice["gt"], mode='F')
+                gt_img = Image.fromarray(pair_slice["gt"], mode='F')
 
             data_dict = {
                 'input': input_img,
                 'gt': gt_img,
-                'roi': roi_img,
-                'input_metadata': seg_pair_slice['input_metadata'][idx],
-                'gt_metadata': seg_pair_slice['gt_metadata'],
-                'roi_metadata': roi_pair_slice['gt_metadata'],
+                'input_metadata': pair_slice['input_metadata'][idx],
+                'gt_metadata': pair_slice['gt_metadata'],
             }
 
             if self.transform is not None:
@@ -465,7 +364,6 @@ class MRI2DSegmentationDataset(Dataset):
             data_dict['input_metadata'] = input_metadata
 
         return data_dict
-
 
 class MRI3DSegmentationDataset(Dataset):
     """This is a generic class for 3D segmentation datasets.
