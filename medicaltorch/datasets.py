@@ -320,12 +320,12 @@ class MRI2DSegmentationDataset(Dataset):
                         continue
 
                 if multichannel:
-                    id = subject.record["subject_id"]
-                    multichannel_subjects[id]["absolute_paths"].append(subject.record.absolute_path)
-                    multichannel_subjects[id]["target_path"] = target_filename
-                    multichannel_subjects[id]["metadata"].append(subject.metadata())
-                    multichannel_subjects[id]["modalities"].append(subject.record["modality"])
-                    multichannel_subjects[id]["roi_path"] = roi_filename
+                    subj_id = subject.record["subject_id"]
+                    multichannel_subjects[subj_id]["absolute_paths"].append(subject.record.absolute_path)
+                    multichannel_subjects[subj_id]["target_path"] = target_filename
+                    multichannel_subjects[subj_id]["metadata"].append(subject.metadata())
+                    multichannel_subjects[subj_id]["modalities"].append(subject.record["modality"])
+                    multichannel_subjects[subj_id]["roi_path"] = roi_filename
 
                 else:
                     self.filename_pairs.append(([subject.record.absolute_path],
