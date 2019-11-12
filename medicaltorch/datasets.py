@@ -63,10 +63,12 @@ class SegmentationPair2D(object):
     """This class is used to build 2D segmentation datasets. It represents
     a pair of of two data volumes (the input data and the ground truth data).
 
-    :param input_filename: the input filename (supported by nibabel).
+    :param input_filename: the input filename list (supported by nibabel). For single channel, the list will contain 1
+                           input filename.
     :param gt_filename: the ground-truth filename.
-    :param metadata: metadata related to image
-    :param modality: contrast of image (e.g. T2w)
+    :param metadata: metadata list related to images 1.  For single channel, the list will contain metadata related to
+                     to one image.
+    :param modality: contrast list related to images (e.g. T2w). For single channel, the list will contain 1 modality.
     :param cache: if the data should be cached in memory or not.
     :param canonical: canonical reordering of the volume axes.
     """
@@ -236,7 +238,7 @@ class MRI2DSegmentationDataset(Dataset):
     :param transform: transformations to apply.
     """
     def __init__(self, filename_pairs, slice_axis=2, cache=True,
-                 transform=None, slice_filter_fn=None, canonical=False, multichannel=False):
+                 transform=None, slice_filter_fn=None, canonical=False):
         self.handlers = []
         self.indexes = []
         self.filename_pairs = filename_pairs
