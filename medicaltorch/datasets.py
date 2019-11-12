@@ -158,8 +158,7 @@ class SegmentationPair2D(object):
             input_dataobj, gt_dataobj = self.get_pair_data()
         else:
             # use dataobj to avoid caching
-            input_dataobj = []
-            input_dataobj.append(handle.dataobj for handle in self.input_handle)
+            input_dataobj= [handle.dataobj for handle in self.input_handle]
 
             if self.gt_handle is None:
                 gt_dataobj = None
