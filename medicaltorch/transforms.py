@@ -721,6 +721,10 @@ class Resample(MTTransform):
             gt_data = sample['gt']
             rdict['gt'] = resample_bin(gt_data, wshape_new,
                                         hshape_new)
+        if sample['roi'] is not None:
+            roi_data = sample['roi']
+            rdict['roi'] = self.resample_bin(roi_data, wshape_new,
+                                        hshape_new, thr=0.0)
 
         sample.update(rdict)
         return sample
