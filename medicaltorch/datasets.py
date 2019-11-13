@@ -261,24 +261,27 @@ class MRI2DSegmentationDataset(Dataset):
             self.handlers.append([segpair, roipair])
 
     def _prepare_indexes(self):
-        for segpair in self.handlers:
-            input_data_shape, _ = segpair.get_pair_shapes()
-            for segpair_slice in range(input_data_shape[self.slice_axis]):
+        for seg_roi_pairs in self.handlers:
+            seg_pair, roi_pair = seg_roi_pairs
+            input_data_shape, _ = seg_pair.get_pair_shapes()
 
-                # Check if slice pair should be used or not
-                if self.slice_filter_fn:
-                    slice_pair = segpair.get_pair_slice(segpair_slice,
-                                                        self.slice_axis)
-
-                    for slice in slice_pair['input']:
-                        single_slice_pair = slice_pair
-                        single_slice_pair['input'] = slice
-                        filter_fn_ret = self.slice_filter_fn(slice_pair)
-
-                    if not filter_fn_ret:
+            for idx_pair_slice in range(input_data_shape[self.slice_axis]):
+                # if ROI provided, filter empty (img, roi) slices
+                if self.slice_filter_fn and slice_roi_pair['gt'] is not None:
+                    slice_roi_pair = roi_pair.get_pair_slice(idx_pair_slice,
+                                                                self.slice_axis)
+                    filter_fn_ret_roi = self.slice_filter_fn(slice_roi_pair)
+                    if not filter_fn_ret_roi:
                         continue
 
-                item = (segpair, segpair_slice)
+                else:  # else filter empty (img, gt) slices
+                    slice_seg_pair = seg_pair.get_pair_slice(idx_pair_slice,
+                                                                self.slice_axis)
+                    filter_fn_ret_seg = self.slice_filter_fn(slice_seg_pair)
+                    if not filter_fn_ret_seg:
+                        continue
+
+                item = (segpair, roipair, segpair_slice)
                 self.indexes.append(item)
 
     def set_transform(self, transform):
