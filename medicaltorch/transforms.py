@@ -193,6 +193,49 @@ class CenterCrop2D(MTTransform):
         return sample
 
 
+class ROICrop2D(Crop2D):
+    """Make a crop of a specified size around a ROI.
+    :param labeled: if it is a segmentation task.
+                         When this is True (default), the crop
+                         will also be applied to the ground truth.
+    """
+    def __init__(self, size, labeled=True):
+        super().__init__(size, labeled)
+
+    def __call__(self, sample):
+        rdict = {}
+        input_data = sample['input']
+        roi_data = sample['roi']
+
+        w, h = input_data.size
+        th, tw = self.size
+        th_half, tw_half = int(round(th / 2.)), int(round(tw / 2.))
+
+        # compute center of mass of the ROI
+        x_roi, y_roi = center_of_mass(np.array(roi_data).astype(np.int))
+        x_roi, y_roi = int(round(x_roi)), int(round(y_roi))
+
+        # compute top left corner of the crop area
+        fh = y_roi - th_half
+        fw = x_roi - tw_half
+        params = (fh, fw, w, h)
+        self.propagate_params(sample, params)
+
+        # crop data
+        input_data = F.crop(input_data, fw, fh, tw, th)
+        rdict['input'] = input_data
+
+        if self.labeled:
+            gt_data = sample['gt']
+            gt_metadata = sample['gt_metadata']
+            gt_data = F.crop(gt_data, fw, fh, tw, th)
+            gt_metadata["__centercrop"] = (fh, fw, w, h)
+            rdict['gt'] = gt_data
+
+        sample.update(rdict)
+        return sample
+
+
 class Normalize(MTTransform):
     """Normalize a tensor image with mean and standard deviation.
 
