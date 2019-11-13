@@ -332,34 +332,44 @@ class MRI2DSegmentationDataset(Dataset):
         return len(self.indexes)
 
     def __getitem__(self, index):
-        """Return the specific index pair slices (input, ground truth).
+        """Return the specific index (input, ground truth, roi and metadatas).
 
         :param index: slice index.
         """
-        segpair, segpair_slice = self.indexes[index]
-        pair_slice = segpair.get_pair_slice(segpair_slice,
-                                            self.slice_axis)
+        segpair, roipair, pair_slice = self.indexes[index]
+        seg_pair_slice = segpair.get_pair_slice(pair_slice,
+                                                self.slice_axis)
+        roi_pair_slice = roipair.get_pair_slice(pair_slice,
+                                                self.slice_axis)
 
         input_tensors = []
         input_metadata = []
         data_dict = {}
-        for idx, input_slice in enumerate(pair_slice["input"]):
+        for idx, input_slice in enumerate(seg_pair_slice["input"]):
             # Consistency with torchvision, returning PIL Image
             # Using the "Float mode" of PIL, the only mode
             # supporting unbounded float32 values
             input_img = Image.fromarray(input_slice, mode='F')
 
             # Handle unlabeled data
-            if pair_slice["gt"] is None:
+            if seg_pair_slice["gt"] is None:
                 gt_img = None
             else:
-                gt_img = Image.fromarray(pair_slice["gt"], mode='F')
+                gt_img = Image.fromarray(seg_pair_slice["gt"], mode='F')
+
+            # Handle data with no ROI provided
+            if roi_pair_slice["gt"] is None:
+                roi_img = None
+            else:
+                roi_img = Image.fromarray(roi_pair_slice["gt"], mode='F')
 
             data_dict = {
                 'input': input_img,
                 'gt': gt_img,
+                'roi': roi_img,
                 'input_metadata': pair_slice['input_metadata'][idx],
                 'gt_metadata': pair_slice['gt_metadata'],
+                'roi_metadata': pair_slice['roi_metadata']
             }
 
             if self.transform is not None:
