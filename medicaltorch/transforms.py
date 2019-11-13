@@ -689,6 +689,15 @@ class Resample(MTTransform):
         self.interpolation = interpolation
         self.labeled = labeled
 
+    @staticmethod
+    def resample_bin(self, data, wshape, hshape, thr=0.5):
+        data = data.resize((wshape, hshape), resample=self.interpolation)
+        np_data = np.array(data)
+        np_data[np_data > thr] = 1.0
+        np_data[np_data <= thr] = 0.0
+        data = Image.fromarray(np_data, mode='F')
+        return data
+
     def __call__(self, sample):
         rdict = {}
         input_data = sample['input']
@@ -710,14 +719,8 @@ class Resample(MTTransform):
 
         if self.labeled:
             gt_data = sample['gt']
-            gt_metadata = sample['gt_metadata']
-            gt_data = gt_data.resize((wshape_new, hshape_new),
-                                     resample=self.interpolation)
-            np_gt_data = np.array(gt_data)
-            np_gt_data[np_gt_data >= 0.5] = 1.0
-            np_gt_data[np_gt_data < 0.5] = 0.0
-            gt_data = Image.fromarray(np_gt_data, mode='F')
-            rdict['gt'] = gt_data
+            rdict['gt'] = resample_bin(gt_data, wshape_new,
+                                        hshape_new)
 
         sample.update(rdict)
         return sample
