@@ -126,7 +126,7 @@ class UnCenterCrop2D(MTTransform):
         return sample
 
 
-class CenterCrop2D(MTTransform):
+class Crop2D(MTTransform):
     """Make a center crop of a specified size.
 
     :param segmentation: if it is a segmentation task.
@@ -147,6 +147,34 @@ class CenterCrop2D(MTTransform):
     def get_params(sample):
         input_metadata = sample['input_metadata']
         return input_metadata["__centercrop"]
+
+    def undo_transform(self, sample):
+        rdict = {}
+        input_data = sample['input']
+        fh, fw, w, h = self.get_params(sample)
+        th, tw = self.size
+
+        pad_left = fw
+        pad_right = w - pad_left - tw
+        pad_top = fh
+        pad_bottom = h - pad_top - th
+
+        padding = (pad_left, pad_top, pad_right, pad_bottom)
+        input_data = F.pad(input_data, padding)
+        rdict['input'] = input_data
+
+        sample.update(rdict)
+        return sample
+
+
+class CenterCrop2D(Crop2D):
+    """Make a centered crop of a specified size.
+    :param labeled: if it is a segmentation task.
+                         When this is True (default), the crop
+                         will also be applied to the ground truth.
+    """
+    def __init__(self, size, labeled=True):
+        super().__init__(size, labeled)
 
     def __call__(self, sample):
         rdict = {}
@@ -170,24 +198,6 @@ class CenterCrop2D(MTTransform):
             gt_metadata["__centercrop"] = (fh, fw, w, h)
             rdict['gt'] = gt_data
 
-
-        sample.update(rdict)
-        return sample
-
-    def undo_transform(self, sample):
-        rdict = {}
-        input_data = sample['input']
-        fh, fw, w, h = self.get_params(sample)
-        th, tw = self.size
-
-        pad_left = fw
-        pad_right = w - pad_left - tw
-        pad_top = fh
-        pad_bottom = h - pad_top - th
-
-        padding = (pad_left, pad_top, pad_right, pad_bottom)
-        input_data = F.pad(input_data, padding)
-        rdict['input'] = input_data
 
         sample.update(rdict)
         return sample
