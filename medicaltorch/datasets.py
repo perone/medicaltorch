@@ -232,7 +232,7 @@ class MRI2DSegmentationDataset(Dataset):
     """This is a generic class for 2D (slice-wise) segmentation datasets.
 
     :param filename_pairs: a list of tuples in the format (input filename list containing all modalities,
-                           ground truth filename).
+                           ground truth filename, ROI filename, metadata).
     :param slice_axis: axis to make the slicing (default axial).
     :param cache: if the data should be cached in memory or not.
     :param transform: transformations to apply.
@@ -253,11 +253,9 @@ class MRI2DSegmentationDataset(Dataset):
 
     def _load_filenames(self):
         for input_filename, gt_filename, roi_filename, metadata, modality in self.filename_pairs:
-            segpair = SegmentationPair2D(input_filename, gt_filename,
-                                         metadata=metadata, modality=modality,
+            segpair = SegmentationPair2D(input_filename, gt_filename, metadata=metadata,
                                          cache=self.cache, canonical=self.canonical)
-            roipair = SegmentationPair2D(input_filename, roi_filename,
-                                         metadata=metadata, modality=modality,
+            roipair = SegmentationPair2D(input_filename, roi_filename, metadata=metadata,
                                          cache=self.cache, canonical=self.canonical)
 
             self.handlers.append([segpair, roipair])
