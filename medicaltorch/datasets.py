@@ -3,7 +3,6 @@ import re
 import collections
 
 from medicaltorch import transforms as mt_transforms
-from bids_neuropoly import bids
 
 from tqdm import tqdm
 import numpy as np
