@@ -67,7 +67,6 @@ class SegmentationPair2D(object):
     :param gt_filename: the ground-truth filename.
     :param metadata: metadata list related to images 1.  For single channel, the list will contain metadata related to
                      to one image.
-    :param modality: contrast list related to images (e.g. T2w). For single channel, the list will contain 1 modality.
     :param cache: if the data should be cached in memory or not.
     :param canonical: canonical reordering of the volume axes.
     """
@@ -77,7 +76,6 @@ class SegmentationPair2D(object):
         self.input_filename = input_filename
         self.gt_filename = gt_filename
         self.metadata = metadata
-        self.modality = [single_metadata['Metadata']['Contrast'] for single_metadata in metadata] if metadata else None
         self.canonical = canonical
         self.cache = cache
 
@@ -114,7 +112,6 @@ class SegmentationPair2D(object):
             for data in metadata:
                 data["input_filename"] = input_filename
                 data["gt_filename"] = gt_filename
-                data["contrast"] = self.modality
                 self.metadata.append(data)
 
     def get_pair_shapes(self):
