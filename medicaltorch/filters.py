@@ -15,7 +15,7 @@ class SliceFilter(object):
                 return False
 
         if self.filter_empty_input:
-            if not np.all(np.any(input_data, axis=0)):
+            if not np.all([np.any(img) for img in input_data]):
                 return False
 
         return True
