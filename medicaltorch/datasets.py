@@ -253,9 +253,9 @@ class MRI2DSegmentationDataset(Dataset):
 
     def _load_filenames(self):
         for input_filename, gt_filename, roi_filename, metadata, modality in self.filename_pairs:
-            segpair = SegmentationPair2D(input_filename, gt_filename, metadata=metadata,
+            segpair = SegmentationPair2D(input_filename, gt_filename, metadata=metadata, modality=modality,
                                          cache=self.cache, canonical=self.canonical)
-            roipair = SegmentationPair2D(input_filename, roi_filename, metadata=metadata,
+            roipair = SegmentationPair2D(input_filename, roi_filename, metadata=metadata, modality=modality,
                                          cache=self.cache, canonical=self.canonical)
 
             self.handlers.append([segpair, roipair])
