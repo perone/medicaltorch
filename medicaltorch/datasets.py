@@ -3,6 +3,7 @@ import re
 import collections
 
 from medicaltorch import transforms as mt_transforms
+from bids_neuropoly import bids
 
 from tqdm import tqdm
 import numpy as np
@@ -13,6 +14,7 @@ import torch
 from torch._six import string_classes, int_classes
 
 from PIL import Image
+
 
 
 __numpy_type_map = {
@@ -61,28 +63,37 @@ class SegmentationPair2D(object):
     """This class is used to build 2D segmentation datasets. It represents
     a pair of of two data volumes (the input data and the ground truth data).
 
-    :param input_filename: the input filename (supported by nibabel).
+    :param input_filename: the input filename list (supported by nibabel). For single channel, the list will contain 1
+                           input filename.
     :param gt_filename: the ground-truth filename.
+    :param metadata: metadata list related to images 1.  For single channel, the list will contain metadata related to
+                     to one image.
+    :param modality: contrast list related to images (e.g. T2w). For single channel, the list will contain 1 modality.
     :param cache: if the data should be cached in memory or not.
     :param canonical: canonical reordering of the volume axes.
     """
-    def __init__(self, input_filename, gt_filename, cache=True,
-                 canonical=False):
+
+    def __init__(self, input_filename, gt_filename, metadata=None, cache=True, canonical=False):
+
         self.input_filename = input_filename
         self.gt_filename = gt_filename
+        self.metadata = metadata
+        self.modality = [single_metadata['Metadata']['Contrast'] for single_metadata in metadata] if metadata else None
         self.canonical = canonical
         self.cache = cache
 
-        self.input_handle = nib.load(self.input_filename)
+        self.input_handle = []
+        for input_file in self.input_filename:
+            input_img = nib.load(input_file)
+            self.input_handle.append(input_img)
+            if len(input_img.shape) > 3:
+                raise RuntimeError("4-dimensional volumes not supported.")
 
         # Unlabeled data (inference time)
         if self.gt_filename is None:
             self.gt_handle = None
         else:
             self.gt_handle = nib.load(self.gt_filename)
-
-        if len(self.input_handle.shape) > 3:
-            raise RuntimeError("4-dimensional volumes not supported.")
 
         # Sanity check for dimensions, should be the same
         input_shape, gt_shape = self.get_pair_shapes()
@@ -92,16 +103,30 @@ class SegmentationPair2D(object):
                 raise RuntimeError('Input and ground truth with different dimensions.')
 
         if self.canonical:
-            self.input_handle = nib.as_closest_canonical(self.input_handle)
+            for idx, handle in enumerate(self.input_handle):
+                self.input_handle[idx] = nib.as_closest_canonical(handle)
 
             # Unlabeled data
             if self.gt_handle is not None:
                 self.gt_handle = nib.as_closest_canonical(self.gt_handle)
 
+        if self.metadata:
+            self.metadata = []
+            for data in metadata:
+                data["input_filename"] = input_filename
+                data["gt_filename"] = gt_filename
+                data["contrast"] = self.modality
+                self.metadata.append(data)
+
     def get_pair_shapes(self):
         """Return the tuple (input, ground truth) representing both the input
         and ground truth shapes."""
-        input_shape = self.input_handle.header.get_data_shape()
+        input_shape = []
+        for handle in self.input_handle:
+            input_shape.append(handle.header.get_data_shape())
+
+            if not len(set(input_shape)):
+                raise RuntimeError('Inputs have different dimensions.')
 
         # Handle unlabeled data
         if self.gt_handle is None:
@@ -109,13 +134,16 @@ class SegmentationPair2D(object):
         else:
             gt_shape = self.gt_handle.header.get_data_shape()
 
-        return input_shape, gt_shape
+        return input_shape[0], gt_shape
 
     def get_pair_data(self):
         """Return the tuble (input, ground truth) with the data content in
         numpy array."""
         cache_mode = 'fill' if self.cache else 'unchanged'
-        input_data = self.input_handle.get_fdata(cache_mode, dtype=np.float32)
+
+        input_data = []
+        for handle in self.input_handle:
+            input_data.append(handle.get_fdata(cache_mode, dtype=np.float32))
 
         # Handle unlabeled data
         if self.gt_handle is None:
@@ -135,7 +163,7 @@ class SegmentationPair2D(object):
             input_dataobj, gt_dataobj = self.get_pair_data()
         else:
             # use dataobj to avoid caching
-            input_dataobj = self.input_handle.dataobj
+            input_dataobj= [handle.dataobj for handle in self.input_handle]
 
             if self.gt_handle is None:
                 gt_dataobj = None
@@ -145,15 +173,17 @@ class SegmentationPair2D(object):
         if slice_axis not in [0, 1, 2]:
             raise RuntimeError("Invalid axis, must be between 0 and 2.")
 
-        if slice_axis == 2:
-            input_slice = np.asarray(input_dataobj[..., slice_index],
-                                     dtype=np.float32)
-        elif slice_axis == 1:
-            input_slice = np.asarray(input_dataobj[:, slice_index, ...],
-                                     dtype=np.float32)
-        elif slice_axis == 0:
-            input_slice = np.asarray(input_dataobj[slice_index, ...],
-                                     dtype=np.float32)
+        input_slice = []
+        for data_object in input_dataobj:
+            if slice_axis == 2:
+                input_slice.append(np.asarray(data_object[..., slice_index],
+                                              dtype=np.float32))
+            elif slice_axis == 1:
+                input_slice.append(np.asarray(data_object[:, slice_index, ...],
+                                              dtype=np.float32))
+            elif slice_axis == 0:
+                input_slice.append(np.asarray(data_object[slice_index, ...],
+                                              dtype=np.float32))
 
         # Handle the case for unlabeled data
         gt_meta_dict = None
@@ -175,10 +205,12 @@ class SegmentationPair2D(object):
                 "data_shape": self.gt_handle.header.get_data_shape()[:2],
             })
 
-        input_meta_dict = SampleMetadata({
-            "zooms": self.input_handle.header.get_zooms()[:2],
-            "data_shape": self.input_handle.header.get_data_shape()[:2],
-        })
+        input_meta_dict = []
+        for handle in self.input_handle:
+            input_meta_dict.append(SampleMetadata({
+                "zooms": handle.header.get_zooms()[:2],
+                "data_shape": handle.header.get_data_shape()[:2],
+            }))
 
         dreturn = {
             "input": input_slice,
@@ -187,23 +219,29 @@ class SegmentationPair2D(object):
             "gt_metadata": gt_meta_dict,
         }
 
+        if self.metadata:
+            for idx, metadata in enumerate(self.metadata):
+                metadata["slice_index"] = slice_index
+                self.metadata[idx] = metadata
+                dreturn["input_metadata"][idx]["bids_metadata"] = metadata
+
         return dreturn
 
 
 class MRI2DSegmentationDataset(Dataset):
     """This is a generic class for 2D (slice-wise) segmentation datasets.
 
-    :param filename_pairs: a list of tuples in the format (input filename,
-                           ground truth filename).
+    :param filename_pairs: a list of tuples in the format (input filename list containing all modalities,
+                           ground truth filename, ROI filename, metadata).
     :param slice_axis: axis to make the slicing (default axial).
     :param cache: if the data should be cached in memory or not.
     :param transform: transformations to apply.
     """
     def __init__(self, filename_pairs, slice_axis=2, cache=True,
                  transform=None, slice_filter_fn=None, canonical=False):
-        self.filename_pairs = filename_pairs
         self.handlers = []
         self.indexes = []
+        self.filename_pairs = filename_pairs
         self.transform = transform
         self.cache = cache
         self.slice_axis = slice_axis
@@ -214,26 +252,35 @@ class MRI2DSegmentationDataset(Dataset):
         self._prepare_indexes()
 
     def _load_filenames(self):
-        for input_filename, gt_filename in self.filename_pairs:
-            segpair = SegmentationPair2D(input_filename, gt_filename,
-                                         self.cache, self.canonical)
-            self.handlers.append(segpair)
+        for input_filename, gt_filename, roi_filename, metadata in self.filename_pairs:
+            segpair = SegmentationPair2D(input_filename, gt_filename, metadata=metadata,
+                                         cache=self.cache, canonical=self.canonical)
+            roipair = SegmentationPair2D(input_filename, roi_filename, metadata=metadata,
+                                         cache=self.cache, canonical=self.canonical)
+
+            self.handlers.append([segpair, roipair])
 
     def _prepare_indexes(self):
-        for segpair in self.handlers:
-            input_data_shape, _ = segpair.get_pair_shapes()
-            for segpair_slice in range(input_data_shape[2]):
+        for seg_roi_pairs in self.handlers:
+            seg_pair, roi_pair = seg_roi_pairs
+            input_data_shape, _ = seg_pair.get_pair_shapes()
 
-                # Check if slice pair should be used or not
-                if self.slice_filter_fn:
-                    slice_pair = segpair.get_pair_slice(segpair_slice,
-                                                        self.slice_axis)
-
-                    filter_fn_ret = self.slice_filter_fn(slice_pair)
-                    if not filter_fn_ret:
+            for idx_pair_slice in range(input_data_shape[self.slice_axis]):
+                slice_roi_pair = roi_pair.get_pair_slice(idx_pair_slice,
+                                                            self.slice_axis)
+                slice_seg_pair = seg_pair.get_pair_slice(idx_pair_slice,
+                                                            self.slice_axis)
+                # if ROI provided, filter empty (img, roi) slices
+                if self.slice_filter_fn and slice_roi_pair['gt'] is not None:
+                    filter_fn_ret_roi = self.slice_filter_fn(slice_roi_pair)
+                    if not filter_fn_ret_roi:
+                        continue
+                else:  # else filter empty (img, gt) slices
+                    filter_fn_ret_seg = self.slice_filter_fn(slice_seg_pair)
+                    if not filter_fn_ret_seg:
                         continue
 
-                item = (segpair, segpair_slice)
+                item = (seg_pair, roi_pair, idx_pair_slice)
                 self.indexes.append(item)
 
     def set_transform(self, transform):
@@ -284,37 +331,56 @@ class MRI2DSegmentationDataset(Dataset):
         return len(self.indexes)
 
     def __getitem__(self, index):
-        """Return the specific index pair slices (input, ground truth).
+        """Return the specific index (input, ground truth, roi and metadatas).
 
         :param index: slice index.
         """
-        segpair, segpair_slice = self.indexes[index]
-        pair_slice = segpair.get_pair_slice(segpair_slice,
-                                            self.slice_axis)
+        segpair, roipair, pair_slice = self.indexes[index]
+        seg_pair_slice = segpair.get_pair_slice(pair_slice,
+                                                self.slice_axis)
+        roi_pair_slice = roipair.get_pair_slice(pair_slice,
+                                                self.slice_axis)
 
-        # Consistency with torchvision, returning PIL Image
-        # Using the "Float mode" of PIL, the only mode
-        # supporting unbounded float32 values
-        input_img = Image.fromarray(pair_slice["input"], mode='F')
+        input_tensors = []
+        input_metadata = []
+        data_dict = {}
+        for idx, input_slice in enumerate(seg_pair_slice["input"]):
+            # Consistency with torchvision, returning PIL Image
+            # Using the "Float mode" of PIL, the only mode
+            # supporting unbounded float32 values
+            input_img = Image.fromarray(input_slice, mode='F')
 
-        # Handle unlabeled data
-        if pair_slice["gt"] is None:
-            gt_img = None
-        else:
-            gt_img = Image.fromarray(pair_slice["gt"], mode='F')
+            # Handle unlabeled data
+            if seg_pair_slice["gt"] is None:
+                gt_img = None
+            else:
+                gt_img = Image.fromarray(seg_pair_slice["gt"], mode='F')
 
-        data_dict = {
-            'input': input_img,
-            'gt': gt_img,
-            'input_metadata': pair_slice['input_metadata'],
-            'gt_metadata': pair_slice['gt_metadata'],
-        }
+            # Handle data with no ROI provided
+            if roi_pair_slice["gt"] is None:
+                roi_img = None
+            else:
+                roi_img = Image.fromarray(roi_pair_slice["gt"], mode='F')
 
-        if self.transform is not None:
-            data_dict = self.transform(data_dict)
+            data_dict = {
+                'input': input_img,
+                'gt': gt_img,
+                'roi': roi_img,
+                'input_metadata': seg_pair_slice['input_metadata'][idx],
+                'gt_metadata': seg_pair_slice['gt_metadata'],
+                'roi_metadata': roi_pair_slice['gt_metadata']
+            }
+
+            if self.transform is not None:
+                data_dict = self.transform(data_dict)
+            input_tensors.append(data_dict['input'])
+            input_metadata.append(data_dict['input_metadata'])
+
+        if len(input_tensors) > 1:
+            data_dict['input'] = torch.squeeze(torch.stack(input_tensors, dim=0))
+            data_dict['input_metadata'] = input_metadata
 
         return data_dict
-
 
 class MRI3DSegmentationDataset(Dataset):
     """This is a generic class for 3D segmentation datasets.

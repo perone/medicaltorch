@@ -126,7 +126,7 @@ class UnCenterCrop2D(MTTransform):
         return sample
 
 
-class CenterCrop2D(MTTransform):
+class Crop2D(MTTransform):
     """Make a center crop of a specified size.
 
     :param segmentation: if it is a segmentation task.
@@ -147,6 +147,34 @@ class CenterCrop2D(MTTransform):
     def get_params(sample):
         input_metadata = sample['input_metadata']
         return input_metadata["__centercrop"]
+
+    def undo_transform(self, sample):
+        rdict = {}
+        input_data = sample['input']
+        fh, fw, w, h = self.get_params(sample)
+        th, tw = self.size
+
+        pad_left = fw
+        pad_right = w - pad_left - tw
+        pad_top = fh
+        pad_bottom = h - pad_top - th
+
+        padding = (pad_left, pad_top, pad_right, pad_bottom)
+        input_data = F.pad(input_data, padding)
+        rdict['input'] = input_data
+
+        sample.update(rdict)
+        return sample
+
+
+class CenterCrop2D(Crop2D):
+    """Make a centered crop of a specified size.
+    :param labeled: if it is a segmentation task.
+                         When this is True (default), the crop
+                         will also be applied to the ground truth.
+    """
+    def __init__(self, size, labeled=True):
+        super().__init__(size, labeled)
 
     def __call__(self, sample):
         rdict = {}
@@ -174,20 +202,45 @@ class CenterCrop2D(MTTransform):
         sample.update(rdict)
         return sample
 
-    def undo_transform(self, sample):
+
+class ROICrop2D(Crop2D):
+    """Make a crop of a specified size around a ROI.
+    :param labeled: if it is a segmentation task.
+                         When this is True (default), the crop
+                         will also be applied to the ground truth.
+    """
+    def __init__(self, size, labeled=True):
+        super().__init__(size, labeled)
+
+    def __call__(self, sample):
         rdict = {}
         input_data = sample['input']
-        fh, fw, w, h = self.get_params(sample)
+        roi_data = sample['roi']
+
+        w, h = input_data.size
         th, tw = self.size
+        th_half, tw_half = int(round(th / 2.)), int(round(tw / 2.))
 
-        pad_left = fw
-        pad_right = w - pad_left - tw
-        pad_top = fh
-        pad_bottom = h - pad_top - th
+        # compute center of mass of the ROI
+        x_roi, y_roi = center_of_mass(np.array(roi_data).astype(np.int))
+        x_roi, y_roi = int(round(x_roi)), int(round(y_roi))
 
-        padding = (pad_left, pad_top, pad_right, pad_bottom)
-        input_data = F.pad(input_data, padding)
+        # compute top left corner of the crop area
+        fh = y_roi - th_half
+        fw = x_roi - tw_half
+        params = (fh, fw, w, h)
+        self.propagate_params(sample, params)
+
+        # crop data
+        input_data = F.crop(input_data, fw, fh, tw, th)
         rdict['input'] = input_data
+
+        if self.labeled:
+            gt_data = sample['gt']
+            gt_metadata = sample['gt_metadata']
+            gt_data = F.crop(gt_data, fw, fh, tw, th)
+            gt_metadata["__centercrop"] = (fh, fw, w, h)
+            rdict['gt'] = gt_data
 
         sample.update(rdict)
         return sample
@@ -636,6 +689,15 @@ class Resample(MTTransform):
         self.interpolation = interpolation
         self.labeled = labeled
 
+    @staticmethod
+    def resample_bin(self, data, wshape, hshape, thr=0.5):
+        data = data.resize((wshape, hshape), resample=self.interpolation)
+        np_data = np.array(data)
+        np_data[np_data > thr] = 1.0
+        np_data[np_data <= thr] = 0.0
+        data = Image.fromarray(np_data, mode='F')
+        return data
+
     def __call__(self, sample):
         rdict = {}
         input_data = sample['input']
@@ -657,14 +719,12 @@ class Resample(MTTransform):
 
         if self.labeled:
             gt_data = sample['gt']
-            gt_metadata = sample['gt_metadata']
-            gt_data = gt_data.resize((wshape_new, hshape_new),
-                                     resample=self.interpolation)
-            np_gt_data = np.array(gt_data)
-            np_gt_data[np_gt_data >= 0.5] = 1.0
-            np_gt_data[np_gt_data < 0.5] = 0.0
-            gt_data = Image.fromarray(np_gt_data, mode='F')
-            rdict['gt'] = gt_data
+            rdict['gt'] = resample_bin(gt_data, wshape_new,
+                                        hshape_new)
+        if sample['roi'] is not None:
+            roi_data = sample['roi']
+            rdict['roi'] = self.resample_bin(roi_data, wshape_new,
+                                        hshape_new, thr=0.0)
 
         sample.update(rdict)
         return sample
