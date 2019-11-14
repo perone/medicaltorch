@@ -216,10 +216,11 @@ class SegmentationPair2D(object):
         }
 
         if self.metadata:
-            for idx, metadata in enumerate(self.metadata):
+            for idx, metadata in enumerate(self.metadata):  # loop across channels
                 metadata["slice_index"] = slice_index
                 self.metadata[idx] = metadata
-                dreturn["input_metadata"][idx]["bids_metadata"] = metadata
+                for metadata_key in metadata.keys():  # loop across input metadata
+                    dreturn["input_metadata"][idx][metadata_key] = metadata[metadata_key]
 
         return dreturn
 
