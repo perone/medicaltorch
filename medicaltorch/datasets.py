@@ -73,12 +73,12 @@ class SegmentationPair2D(object):
     :param canonical: canonical reordering of the volume axes.
     """
 
-    def __init__(self, input_filename, gt_filename, metadata=None, modality=None, cache=True, canonical=False):
+    def __init__(self, input_filename, gt_filename, metadata=None, cache=True, canonical=False):
 
         self.input_filename = input_filename
         self.gt_filename = gt_filename
         self.metadata = metadata
-        self.modality = modality
+        self.modality = [single_metadata['Metadata']['Contrast'] for single_metadata in metadata] if metadata else None
         self.canonical = canonical
         self.cache = cache
 
@@ -115,7 +115,7 @@ class SegmentationPair2D(object):
             for data in metadata:
                 data["input_filename"] = input_filename
                 data["gt_filename"] = gt_filename
-                data["contrast"] = modality if self.modality else None
+                data["contrast"] = self.modality
                 self.metadata.append(data)
 
     def get_pair_shapes(self):
@@ -252,7 +252,7 @@ class MRI2DSegmentationDataset(Dataset):
         self._prepare_indexes()
 
     def _load_filenames(self):
-        for input_filename, gt_filename, roi_filename, metadata, modality in self.filename_pairs:
+        for input_filename, gt_filename, roi_filename, metadata in self.filename_pairs:
             segpair = SegmentationPair2D(input_filename, gt_filename, metadata=metadata,
                                          cache=self.cache, canonical=self.canonical)
             roipair = SegmentationPair2D(input_filename, roi_filename, metadata=metadata,
