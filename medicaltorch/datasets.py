@@ -280,7 +280,7 @@ class MRI2DSegmentationDataset(Dataset):
                     if not filter_fn_ret_seg:
                         continue
 
-                item = (segpair, roipair, segpair_slice)
+                item = (seg_pair, roi_pair, idx_pair_slice)
                 self.indexes.append(item)
 
     def set_transform(self, transform):
@@ -366,9 +366,9 @@ class MRI2DSegmentationDataset(Dataset):
                 'input': input_img,
                 'gt': gt_img,
                 'roi': roi_img,
-                'input_metadata': pair_slice['input_metadata'][idx],
-                'gt_metadata': pair_slice['gt_metadata'],
-                'roi_metadata': pair_slice['roi_metadata']
+                'input_metadata': seg_pair_slice['input_metadata'][idx],
+                'gt_metadata': seg_pair_slice['gt_metadata'],
+                'roi_metadata': roi_pair_slice['gt_metadata']
             }
 
             if self.transform is not None:
