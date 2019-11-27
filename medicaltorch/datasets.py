@@ -263,19 +263,11 @@ class MRI2DSegmentationDataset(Dataset):
             input_data_shape, _ = seg_pair.get_pair_shapes()
 
             for idx_pair_slice in range(input_data_shape[self.slice_axis]):
-                slice_roi_pair = roi_pair.get_pair_slice(idx_pair_slice,
-                                                            self.slice_axis)
                 slice_seg_pair = seg_pair.get_pair_slice(idx_pair_slice,
                                                             self.slice_axis)
-                # if ROI provided, filter empty (img, roi) slices
-                if self.slice_filter_fn and slice_roi_pair['gt'] is not None:
-                    filter_fn_ret_roi = self.slice_filter_fn(slice_roi_pair)
-                    if not filter_fn_ret_roi:
-                        continue
-                else:  # else filter empty (img, gt) slices
-                    filter_fn_ret_seg = self.slice_filter_fn(slice_seg_pair)
-                    if not filter_fn_ret_seg:
-                        continue
+                filter_fn_ret_seg = self.slice_filter_fn(slice_seg_pair)
+                if self.slice_filter_fn and not filter_fn_ret_seg:
+                    continue
 
                 item = (seg_pair, roi_pair, idx_pair_slice)
                 self.indexes.append(item)
