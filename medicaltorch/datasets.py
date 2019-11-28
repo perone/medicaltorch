@@ -269,7 +269,7 @@ class MRI2DSegmentationDataset(Dataset):
                 self.indexes.append(item)
 
     def set_transform(self, transform):
-        """This method will replace the current transformation for the
+        """ This method will replace the current transformation for the
         dataset.
 
         :param transform: the new transformation
@@ -277,6 +277,8 @@ class MRI2DSegmentationDataset(Dataset):
         self.transform = transform
 
     def compute_mean_std(self, verbose=False):
+        # TODO: adapt to multi channels
+
         """Compute the mean and standard deviation of the entire dataset.
 
         :param verbose: if True, it will show a progress bar.
@@ -285,8 +287,7 @@ class MRI2DSegmentationDataset(Dataset):
         sum_intensities = 0.0
         numel = 0
 
-        with DatasetManager(self,
-                            override_transform=mt_transforms.ToTensor()) as dset:
+        with DatasetManager(self, override_transform=mt_transforms.ToTensor()) as dset:
             pbar = tqdm(dset, desc="Mean calculation", disable=not verbose)
             for sample in pbar:
                 input_data = sample['input']
@@ -325,11 +326,18 @@ class MRI2DSegmentationDataset(Dataset):
         input_tensors = []
         input_metadata = []
         data_dict = {}
+
+        # Looping over all the inputs (just one or multiple)
         for idx, input_slice in enumerate(seg_pair_slice["input"]):
+
+            # TODO: Check if we can switch to float8 instead
             # Consistency with torchvision, returning PIL Image
             # Using the "Float mode" of PIL, the only mode
             # supporting unbounded float32 values
+
             input_img = Image.fromarray(input_slice, mode='F')
+            input_tensors.append(input_img)
+            input_metadata.append(seg_pair_slice['input_metadata'][idx])
 
             # Handle unlabeled data
             if seg_pair_slice["gt"] is None:
@@ -363,6 +371,9 @@ class MRI2DSegmentationDataset(Dataset):
             data_dict['input'] = torch.squeeze(torch.stack(input_tensors, dim=0))
             data_dict['input_metadata'] = input_metadata
 
+        # Warning: both input_tensors and input_metadata are list. Transforms needs to take that into account.
+        if self.transform is not None:
+            data_dict = self.transform(data_dict)
         return data_dict
 
 

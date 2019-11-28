@@ -37,7 +37,7 @@ class UndoTransform(object):
 
 
 class ToTensor(MTTransform):
-    """Convert a PIL image or numpy array to a PyTorch tensor."""
+    """Convert a PIL image(s) or numpy array(s) to a PyTorch tensor(s)."""
 
     def __init__(self, labeled=True):
         self.labeled = labeled
@@ -47,9 +47,10 @@ class ToTensor(MTTransform):
         input_data = sample['input']
 
         if isinstance(input_data, list):
-            ret_input = [F.to_tensor(item)
-                         for item in input_data]
+            # Multiple inputs
+            ret_input = [F.to_tensor(item) for item in input_data]
         else:
+            # single input
             ret_input = F.to_tensor(input_data)
 
         rdict['input'] = ret_input
@@ -58,15 +59,15 @@ class ToTensor(MTTransform):
             gt_data = sample['gt']
             if gt_data is not None:
                 if isinstance(gt_data, list):
-                    ret_gt = [F.to_tensor(item)
-                              for item in gt_data]
+                    # multiple GT
+                    ret_gt = [F.to_tensor(item) for item in gt_data]
                 else:
+                    # single GT
                     ret_gt = F.to_tensor(gt_data)
 
                 rdict['gt'] = ret_gt
         sample.update(rdict)
         return sample
-
 
 class ToPIL(MTTransform):
     def __init__(self, labeled=True):
@@ -89,8 +90,7 @@ class ToPIL(MTTransform):
         input_data = sample['input']
 
         if isinstance(input_data, list):
-            ret_input = [self.sample_transform(item)
-                         for item in input_data]
+            ret_input = [self.sample_transform(item) for item in input_data]
         else:
             ret_input = self.sample_transform(input_data)
 
@@ -100,8 +100,7 @@ class ToPIL(MTTransform):
             gt_data = sample['gt']
 
             if isinstance(gt_data, list):
-                ret_gt = [self.sample_transform(item)
-                          for item in gt_data]
+                ret_gt = [self.sample_transform(item) for item in gt_data]
             else:
                 ret_gt = self.sample_transform(gt_data)
 
@@ -111,6 +110,7 @@ class ToPIL(MTTransform):
         return sample
 
 
+# useless ??
 class UnCenterCrop2D(MTTransform):
     def __init__(self, size, segmentation=True):
         self.size = size
@@ -600,9 +600,7 @@ class RandomTensorChannelShift(MTTransform):
 
             # Augment just the image, not the mask
             # TODO: fix it later
-            ret_input = []
-            ret_input.append(self.sample_augment(input_data[0], params))
-            ret_input.append(input_data[1])
+            ret_input = [self.sample_augment(input_data[0], params), input_data[1]]
         else:
             ret_input = self.sample_augment(input_data, params)
 
