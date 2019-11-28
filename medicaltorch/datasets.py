@@ -371,6 +371,7 @@ class MRI2DSegmentationDataset(Dataset):
             data_dict['input'] = torch.squeeze(torch.stack(input_tensors, dim=0))
             data_dict['input_metadata'] = input_metadata
 
+
         # Warning: both input_tensors and input_metadata are list. Transforms needs to take that into account.
         if self.transform is not None:
             data_dict = self.transform(data_dict)

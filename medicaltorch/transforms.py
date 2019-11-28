@@ -414,6 +414,7 @@ class RandomRotation3D(MTTransform):
         rdict['input'] = input_rotated
         if self.labeled:
             rdict['gt'] = gt_rotated
+
         sample.update(rdict)
 
         return sample
