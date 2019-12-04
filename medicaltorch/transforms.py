@@ -516,9 +516,10 @@ class RandomAffine(MTTransform):
     def label_augment(self, gt_data, params):
         gt_data = self.sample_augment(gt_data, params)
         np_gt_data = np.array(gt_data)
-        np_gt_data[np_gt_data >= 0.5] = 1.0
+        np_gt_data[np_gt_data >= 0.5] = 255.0
         np_gt_data[np_gt_data < 0.5] = 0.0
-        gt_data = Image.fromarray(np_gt_data, mode='F')
+        np_gt_data = np_gt_data.astype(np.uint8)
+        gt_data = Image.fromarray(np_gt_data, mode='L')
         return gt_data
 
     def __call__(self, sample):
@@ -641,9 +642,10 @@ class ElasticTransform(MTTransform):
         np_gt_data = np.array(gt_data)
         np_gt_data = self.elastic_transform(np_gt_data,
                                             param_alpha, param_sigma)
-        np_gt_data[np_gt_data >= 0.5] = 1.0
+        np_gt_data[np_gt_data >= 0.5] = 255.0
         np_gt_data[np_gt_data < 0.5] = 0.0
-        gt_data = Image.fromarray(np_gt_data, mode='F')
+        np_gt_data = np_gt_data.astype(np.uint8)
+        gt_data = Image.fromarray(np_gt_data, mode='L')
 
         return gt_data
 
@@ -693,9 +695,10 @@ class Resample(MTTransform):
     def resample_bin(self, data, wshape, hshape, thr=0.5):
         data = data.resize((wshape, hshape), resample=self.interpolation)
         np_data = np.array(data)
-        np_data[np_data > thr] = 1.0
+        np_data[np_data > thr] = 255.0
         np_data[np_data <= thr] = 0.0
-        data = Image.fromarray(np_data, mode='F')
+        np_data = np_data.astype(np.uint8)
+        data = Image.fromarray(np_data, mode='L')
         return data
 
     def __call__(self, sample):

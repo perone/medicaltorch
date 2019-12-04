@@ -343,13 +343,15 @@ class MRI2DSegmentationDataset(Dataset):
             if seg_pair_slice["gt"] is None:
                 gt_img = None
             else:
-                gt_img = Image.fromarray(seg_pair_slice["gt"], mode='F')
+                gt_img = (seg_pair_slice["gt"] * 255).astype(np.uint8)
+                gt_img = Image.fromarray(gt_img, mode='L')
 
             # Handle data with no ROI provided
             if roi_pair_slice["gt"] is None:
                 roi_img = None
             else:
-                roi_img = Image.fromarray(roi_pair_slice["gt"], mode='F')
+                roi_img = (roi_pair_slice["gt"] * 255).astype(np.uint8)
+                roi_img = Image.fromarray(roi_img, mode='L')
 
             data_dict = {
                 'input': input_img,
