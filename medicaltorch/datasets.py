@@ -14,8 +14,6 @@ from torch._six import string_classes, int_classes
 
 from PIL import Image
 
-
-
 __numpy_type_map = {
     'float64': torch.DoubleTensor,
     'float32': torch.FloatTensor,
@@ -159,7 +157,7 @@ class SegmentationPair2D(object):
             input_dataobj, gt_dataobj = self.get_pair_data()
         else:
             # use dataobj to avoid caching
-            input_dataobj= [handle.dataobj for handle in self.input_handle]
+            input_dataobj = [handle.dataobj for handle in self.input_handle]
 
             if self.gt_handle is None:
                 gt_dataobj = None
@@ -234,9 +232,10 @@ class MRI2DSegmentationDataset(Dataset):
     :param cache: if the data should be cached in memory or not.
     :param transform: transformations to apply.
     """
+
     def __init__(self, filename_pairs, slice_axis=2, cache=True,
                  transform=None, slice_filter_fn=None, canonical=False):
-        self.handlers = []
+
         self.indexes = []
         self.filename_pairs = filename_pairs
         self.transform = transform
@@ -246,30 +245,27 @@ class MRI2DSegmentationDataset(Dataset):
         self.canonical = canonical
 
         self._load_filenames()
-        self._prepare_indexes()
 
     def _load_filenames(self):
         for input_filename, gt_filename, roi_filename, metadata in self.filename_pairs:
-            segpair = SegmentationPair2D(input_filename, gt_filename, metadata=metadata,
-                                         cache=self.cache, canonical=self.canonical)
-            roipair = SegmentationPair2D(input_filename, roi_filename, metadata=metadata,
-                                         cache=self.cache, canonical=self.canonical)
+            seg_pair = SegmentationPair2D(input_filename, gt_filename, metadata=metadata,
+                                          cache=self.cache, canonical=self.canonical)
+            roi_pair = SegmentationPair2D(input_filename, roi_filename, metadata=metadata,
+                                          cache=self.cache, canonical=self.canonical)
 
-            self.handlers.append([segpair, roipair])
-
-    def _prepare_indexes(self):
-        for seg_roi_pairs in self.handlers:
-            seg_pair, roi_pair = seg_roi_pairs
             input_data_shape, _ = seg_pair.get_pair_shapes()
 
             for idx_pair_slice in range(input_data_shape[self.slice_axis]):
                 slice_seg_pair = seg_pair.get_pair_slice(idx_pair_slice,
-                                                            self.slice_axis)
+                                                         self.slice_axis)
                 filter_fn_ret_seg = self.slice_filter_fn(slice_seg_pair)
                 if self.slice_filter_fn and not filter_fn_ret_seg:
                     continue
 
-                item = (seg_pair, roi_pair, idx_pair_slice)
+                slice_roi_pair = roi_pair.get_pair_slice(idx_pair_slice,
+                                                         self.slice_axis)
+
+                item = (slice_seg_pair, slice_roi_pair)
                 self.indexes.append(item)
 
     def set_transform(self, transform):
@@ -324,11 +320,7 @@ class MRI2DSegmentationDataset(Dataset):
 
         :param index: slice index.
         """
-        segpair, roipair, pair_slice = self.indexes[index]
-        seg_pair_slice = segpair.get_pair_slice(pair_slice,
-                                                self.slice_axis)
-        roi_pair_slice = roipair.get_pair_slice(pair_slice,
-                                                self.slice_axis)
+        seg_pair_slice, roi_pair_slice = self.indexes[index]
 
         input_tensors = []
         input_metadata = []
@@ -373,6 +365,7 @@ class MRI2DSegmentationDataset(Dataset):
 
         return data_dict
 
+
 class MRI3DSegmentationDataset(Dataset):
     """This is a generic class for 3D segmentation datasets.
 
@@ -381,6 +374,7 @@ class MRI3DSegmentationDataset(Dataset):
     :param cache: if the data should be cached in memory or not.
     :param transform: transformations to apply.
     """
+
     def __init__(self, filename_pairs, cache=True,
                  transform=None, canonical=False):
         self.filename_pairs = filename_pairs
@@ -424,6 +418,7 @@ class MRI3DSegmentationDataset(Dataset):
             data_dict = self.transform(data_dict)
         return data_dict
 
+
 class MRI3DSubVolumeSegmentationDataset(MRI3DSegmentationDataset):
     """This is a generic class for 3D segmentation datasets. This class overload
     MRI3DSegmentationDataset by splitting the initials volumes in several
@@ -445,11 +440,12 @@ class MRI3DSubVolumeSegmentationDataset(MRI3DSegmentationDataset):
     :param length: size of each dimensions of the subvolumes
     :param padding: size of the overlapping per subvolume and dimensions
     """
+
     def __init__(self, filename_pairs, cache=True,
-                 transform=None, canonical=False, length=(64,64,64), padding=0):
+                 transform=None, canonical=False, length=(64, 64, 64), padding=0):
         super().__init__(filename_pairs, cache, transform, canonical)
-        self.length=length
-        self.padding=padding
+        self.length = length
+        self.padding = padding
         self._prepare_indexes()
 
     def _prepare_indexes(self):
@@ -461,21 +457,21 @@ class MRI3DSubVolumeSegmentationDataset(MRI3DSegmentationDataset):
             shape = input_img.shape
             if (shape[0] - 2 * padding) % length[0] != 0 \
                     or (shape[1] - 2 * padding) % length[1] != 0 \
-                    or (shape[2] - 2 * padding) % length[2] != 0 :
+                    or (shape[2] - 2 * padding) % length[2] != 0:
                 raise RuntimeError('Input shape of each dimension should be a \
                                     multiple of length plus 2 * padding')
 
-            for x in range(length[0]+padding, shape[0]-padding+1, length[0]):
-                for y in range(length[1]+padding, shape[1]-padding+1, length[1]):
-                    for z in range(length[2]+padding, shape[2]-padding+1, length[2]):
+            for x in range(length[0] + padding, shape[0] - padding + 1, length[0]):
+                for y in range(length[1] + padding, shape[1] - padding + 1, length[1]):
+                    for z in range(length[2] + padding, shape[2] - padding + 1, length[2]):
                         self.indexes.append({
-                            'x_min': x-length[0]-padding,
-                            'x_max': x+padding,
-                            'y_min': y-length[1]-padding,
-                            'y_max': y+padding,
-                            'z_min': z-length[2]-padding,
-                            'z_max': z+padding,
-                            'handler_index':i})
+                            'x_min': x - length[0] - padding,
+                            'x_max': x + padding,
+                            'y_min': y - length[1] - padding,
+                            'y_max': y + padding,
+                            'z_min': z - length[2] - padding,
+                            'z_max': z + padding,
+                            'handler_index': i})
 
     def __len__(self):
         """Return the dataset size. The number of subvolumes."""
@@ -494,18 +490,18 @@ class MRI3DSubVolumeSegmentationDataset(MRI3DSegmentationDataset):
         }
 
         data_dict['input'] = data_dict['input'][coord['x_min']:coord['x_max'],
-                                coord['y_min']:coord['y_max'],
-                                coord['z_min']:coord['z_max']]
+                             coord['y_min']:coord['y_max'],
+                             coord['z_min']:coord['z_max']]
 
         data_dict['gt'] = data_dict['gt'][coord['x_min']:coord['x_max'],
-                                          coord['y_min']:coord['y_max'],
-                                          coord['z_min']:coord['z_max']]
+                          coord['y_min']:coord['y_max'],
+                          coord['z_min']:coord['z_max']]
 
         if self.transform is not None:
             data_dict = self.transform(data_dict)
 
-        data_dict['input'] = data_dict['input'][None,:,:,:]
-        data_dict['gt'] = data_dict['gt'][None,:,:,:]
+        data_dict['input'] = data_dict['input'][None, :, :, :]
+        data_dict['gt'] = data_dict['gt'][None, :, :, :]
 
         return data_dict
 
@@ -657,7 +653,6 @@ class SCGMChallenge2DTest(MRI2DSegmentationDataset):
             return "site{:d}-sc{:02d}-image.nii.gz".format(site_id, subj_id)
         else:
             return "site{:d}-sc{:02d}-mask-r{:d}.nii.gz".format(site_id, subj_id, rater_id)
-
 
 
 def mt_collate(batch):
