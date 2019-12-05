@@ -133,6 +133,7 @@ class Crop2D(MTTransform):
                          When this is True (default), the crop
                          will also be applied to the ground truth.
     """
+
     def __init__(self, size, labeled=True):
         self.size = size
         self.labeled = labeled
@@ -173,6 +174,7 @@ class CenterCrop2D(Crop2D):
                          When this is True (default), the crop
                          will also be applied to the ground truth.
     """
+
     def __init__(self, size, labeled=True):
         super().__init__(size, labeled)
 
@@ -198,7 +200,6 @@ class CenterCrop2D(Crop2D):
             gt_metadata["__centercrop"] = (fh, fw, w, h)
             rdict['gt'] = gt_data
 
-
         sample.update(rdict)
         return sample
 
@@ -209,6 +210,7 @@ class ROICrop2D(Crop2D):
                          When this is True (default), the crop
                          will also be applied to the ground truth.
     """
+
     def __init__(self, size, labeled=True):
         super().__init__(size, labeled)
 
@@ -252,6 +254,7 @@ class Normalize(MTTransform):
     :param mean: mean value.
     :param std: standard deviation value.
     """
+
     def __init__(self, mean, std):
         self.mean = mean
         self.std = std
@@ -275,6 +278,7 @@ class NormalizeInstance(MTTransform):
     :param mean: mean value.
     :param std: standard deviation value.
     """
+
     def __call__(self, sample):
         input_data = sample['input']
 
@@ -287,6 +291,7 @@ class NormalizeInstance(MTTransform):
         sample.update(rdict)
         return sample
 
+
 class NormalizeInstance3D(MTTransform):
     """Normalize a tensor volume with mean and standard deviation estimated
     from the sample itself.
@@ -294,6 +299,7 @@ class NormalizeInstance3D(MTTransform):
     :param mean: mean value.
     :param std: standard deviation value.
     """
+
     def __call__(self, sample):
         input_data = sample['input']
 
@@ -301,14 +307,15 @@ class NormalizeInstance3D(MTTransform):
 
         if mean != 0 or std != 0:
             input_data_normalized = F.normalize(input_data,
-                                    [mean for _ in range(0,input_data.shape[0])],
-                                    [std for _ in range(0,input_data.shape[0])])
+                                                [mean for _ in range(0, input_data.shape[0])],
+                                                [std for _ in range(0, input_data.shape[0])])
 
             rdict = {
                 'input': input_data_normalized,
             }
             sample.update(rdict)
         return sample
+
 
 class RandomRotation(MTTransform):
     def __init__(self, degrees, resample=False,
@@ -352,12 +359,14 @@ class RandomRotation(MTTransform):
         sample.update(rdict)
         return sample
 
+
 class RandomRotation3D(MTTransform):
     """Make a rotation of the volume's values.
 
     :param degrees: Maximum rotation's degrees.
     :param axis: Axis of the rotation.
     """
+
     def __init__(self, degrees, axis=0, labeled=True):
         if isinstance(degrees, numbers.Number):
             if degrees < 0:
@@ -390,28 +399,31 @@ class RandomRotation3D(MTTransform):
         # TODO: Use the axis index for factoring this loop
         for x in range(input_data.shape[self.axis]):
             if self.axis == 0:
-                input_rotated[x,:,:] = F.rotate(Image.fromarray(input_data[x,:,:], mode='F'), angle)
+                input_rotated[x, :, :] = F.rotate(Image.fromarray(input_data[x, :, :], mode='F'), angle)
                 if self.labeled:
-                    gt_rotated[x,:,:] = F.rotate(Image.fromarray(gt_data[x,:,:], mode='F'), angle)
+                    gt_rotated[x, :, :] = F.rotate(Image.fromarray(gt_data[x, :, :], mode='L'), angle)
             if self.axis == 1:
-                input_rotated[:,x,:] = F.rotate(Image.fromarray(input_data[:,x,:], mode='F'), angle)
+                input_rotated[:, x, :] = F.rotate(Image.fromarray(input_data[:, x, :], mode='F'), angle)
                 if self.labeled:
-                    gt_rotated[:,x,:] = F.rotate(Image.fromarray(gt_data[:,x,:], mode='F'), angle)
+                    gt_rotated[:, x, :] = F.rotate(Image.fromarray(gt_data[:, x, :], mode='L'), angle)
             if self.axis == 2:
-                input_rotated[:,:,x] = F.rotate(Image.fromarray(input_data[:,:,x], mode='F'), angle)
+                input_rotated[:, :, x] = F.rotate(Image.fromarray(input_data[:, :, x], mode='F'), angle)
                 if self.labeled:
-                    gt_rotated[:,:,x] = F.rotate(Image.fromarray(gt_data[:,:,x], mode='F'), angle)
+                    gt_rotated[:, :, x] = F.rotate(Image.fromarray(gt_data[:, :, x], mode='L'), angle)
 
         rdict['input'] = input_rotated
-        if self.labeled : rdict['gt'] = gt_rotated
+        if self.labeled:
+            rdict['gt'] = gt_rotated
         sample.update(rdict)
 
         return sample
+
 
 class RandomReverse3D(MTTransform):
     """Make a symmetric inversion of the different values of each dimensions.
     (randomized)
     """
+
     def __init__(self, labeled=True):
         self.labeled = labeled
 
@@ -420,20 +432,21 @@ class RandomReverse3D(MTTransform):
         input_data = sample['input']
         gt_data = sample['gt'] if self.labeled else None
         if np.random.randint(2) == 1:
-            input_data = np.flip(input_data,axis=0).copy()
-            if self.labeled: gt_data = np.flip(gt_data,axis=0).copy()
+            input_data = np.flip(input_data, axis=0).copy()
+            if self.labeled: gt_data = np.flip(gt_data, axis=0).copy()
         if np.random.randint(2) == 1:
-            input_data = np.flip(input_data,axis=1).copy()
-            if self.labeled: gt_data = np.flip(gt_data,axis=1).copy()
+            input_data = np.flip(input_data, axis=1).copy()
+            if self.labeled: gt_data = np.flip(gt_data, axis=1).copy()
         if np.random.randint(2) == 1:
-            input_data = np.flip(input_data,axis=2).copy()
-            if self.labeled: gt_data = np.flip(gt_data,axis=2).copy()
+            input_data = np.flip(input_data, axis=2).copy()
+            if self.labeled: gt_data = np.flip(gt_data, axis=2).copy()
 
         rdict['input'] = input_data
-        if self.labeled : rdict['gt'] = gt_data
+        if self.labeled: rdict['gt'] = gt_data
 
         sample.update(rdict)
         return sample
+
 
 class RandomAffine(MTTransform):
     def __init__(self, degrees, translate=None,
@@ -560,6 +573,7 @@ class RandomAffine(MTTransform):
         sample.update(rdict)
         return sample
 
+
 class RandomTensorChannelShift(MTTransform):
     def __init__(self, shift_range):
         self.shift_range = shift_range
@@ -581,7 +595,7 @@ class RandomTensorChannelShift(MTTransform):
         params = self.get_params(self.shift_range)
 
         if isinstance(input_data, list):
-            #ret_input = [self.sample_augment(item, params)
+            # ret_input = [self.sample_augment(item, params)
             #             for item in input_data]
 
             # Augment just the image, not the mask
@@ -624,7 +638,7 @@ class ElasticTransform(MTTransform):
 
         x, y = np.meshgrid(np.arange(shape[0]),
                            np.arange(shape[1]), indexing='ij')
-        indices = np.reshape(x+dx, (-1, 1)), np.reshape(y+dy, (-1, 1))
+        indices = np.reshape(x + dx, (-1, 1)), np.reshape(y + dy, (-1, 1))
         return map_coordinates(image, indices, order=1).reshape(shape)
 
     def sample_augment(self, input_data, params):
@@ -723,11 +737,11 @@ class Resample(MTTransform):
         if self.labeled:
             gt_data = sample['gt']
             rdict['gt'] = resample_bin(gt_data, wshape_new,
-                                        hshape_new)
+                                       hshape_new)
         if sample['roi'] is not None:
             roi_data = sample['roi']
             rdict['roi'] = self.resample_bin(roi_data, wshape_new,
-                                        hshape_new, thr=0.0)
+                                             hshape_new, thr=0.0)
 
         sample.update(rdict)
         return sample
@@ -753,6 +767,7 @@ class AdditiveGaussianNoise(MTTransform):
         sample.update(rdict)
         return sample
 
+
 class Clahe(MTTransform):
     def __init__(self, clip_limit=3.0, kernel_size=(8, 8)):
         # Default values are based upon the following paper:
@@ -760,7 +775,7 @@ class Clahe(MTTransform):
 
         self.clip_limit = clip_limit
         self.kernel_size = kernel_size
-    
+
     def __call__(self, sample):
         if not isinstance(sample, np.ndarray):
             raise TypeError("Input sample must be a numpy array.")
