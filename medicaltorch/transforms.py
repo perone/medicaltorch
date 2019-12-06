@@ -69,6 +69,7 @@ class ToTensor(MTTransform):
         sample.update(rdict)
         return sample
 
+
 class ToPIL(MTTransform):
     def __init__(self, labeled=True):
         self.labeled = labeled
@@ -414,7 +415,6 @@ class RandomRotation3D(MTTransform):
         rdict['input'] = input_rotated
         if self.labeled:
             rdict['gt'] = gt_rotated
-
         sample.update(rdict)
 
         return sample
