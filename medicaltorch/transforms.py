@@ -69,6 +69,7 @@ class ToTensor(MTTransform):
         sample.update(rdict)
         return sample
 
+
 class ToPIL(MTTransform):
     def __init__(self, labeled=True):
         self.labeled = labeled
@@ -401,7 +402,6 @@ class RandomRotation3D(MTTransform):
             if self.axis == 0:
                 input_rotated[x, :, :] = F.rotate(Image.fromarray(input_data[x, :, :], mode='F'), angle)
                 if self.labeled:
-<<<<<<< HEAD
                     gt_rotated[x, :, :] = F.rotate(Image.fromarray(gt_data[x, :, :], mode='L'), angle)
             if self.axis == 1:
                 input_rotated[:, x, :] = F.rotate(Image.fromarray(input_data[:, x, :], mode='F'), angle)
@@ -415,20 +415,6 @@ class RandomRotation3D(MTTransform):
         rdict['input'] = input_rotated
         if self.labeled:
             rdict['gt'] = gt_rotated
-=======
-                    gt_rotated[x, :, :] = F.rotate(Image.fromarray(gt_data[x, :, :], mode='F'), angle)
-            if self.axis == 1:
-                input_rotated[:, x, :] = F.rotate(Image.fromarray(input_data[:, x, :], mode='F'), angle)
-                if self.labeled:
-                    gt_rotated[:, x, :] = F.rotate(Image.fromarray(gt_data[:, x, :], mode='F'), angle)
-            if self.axis == 2:
-                input_rotated[:, :, x] = F.rotate(Image.fromarray(input_data[:, :, x], mode='F'), angle)
-                if self.labeled:
-                    gt_rotated[:, :, x] = F.rotate(Image.fromarray(gt_data[:, :, x], mode='F'), angle)
-
-        rdict['input'] = input_rotated
-        if self.labeled: rdict['gt'] = gt_rotated
->>>>>>> 4d018b91f723ab79974a67a6a3d303b6cb5f0f76
         sample.update(rdict)
 
         return sample

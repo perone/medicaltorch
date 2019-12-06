@@ -346,7 +346,6 @@ class MRI2DSegmentationDataset(Dataset):
             input_tensors.append(input_img)
             input_metadata.append(seg_pair_slice['input_metadata'][idx])
 
-<<<<<<< HEAD
             # Handle unlabeled data
             if seg_pair_slice["gt"] is None:
                 gt_img = None
@@ -378,28 +377,6 @@ class MRI2DSegmentationDataset(Dataset):
         if len(input_tensors) > 1:
             data_dict['input'] = torch.squeeze(torch.stack(input_tensors, dim=0))
             data_dict['input_metadata'] = input_metadata
-=======
-        # Handle unlabeled data
-        if seg_pair_slice["gt"] is None:
-            gt_img = None
-        else:
-            gt_img = Image.fromarray(seg_pair_slice["gt"], mode='F')
-
-        # Handle data with no ROI provided
-        if roi_pair_slice["gt"] is None:
-            roi_img = None
-        else:
-            roi_img = Image.fromarray(roi_pair_slice["gt"], mode='F')
-
-        data_dict = {
-            'input': input_tensors,  # torch.squeeze(torch.stack(input_tensors, dim=0))
-            'gt': gt_img,
-            'roi': roi_img,
-            'input_metadata': input_metadata,
-            'gt_metadata': seg_pair_slice['gt_metadata'],
-            'roi_metadata': roi_pair_slice['gt_metadata']
-        }
->>>>>>> 4d018b91f723ab79974a67a6a3d303b6cb5f0f76
 
         # Warning: both input_tensors and input_metadata are list. Transforms needs to take that into account.
         if self.transform is not None:
