@@ -248,9 +248,9 @@ class MRI2DSegmentationDataset(Dataset):
 
     def _load_filenames(self):
         for input_filename, gt_filename, roi_filename, metadata in self.filename_pairs:
-            seg_pair = SegmentationPair2D(input_filename, gt_filename, metadata=metadata,
-                                          cache=self.cache, canonical=self.canonical)
             roi_pair = SegmentationPair2D(input_filename, roi_filename, metadata=metadata,
+                                          cache=self.cache, canonical=self.canonical)
+            seg_pair = SegmentationPair2D(input_filename, gt_filename, metadata=metadata,
                                           cache=self.cache, canonical=self.canonical)
 
             input_data_shape, _ = seg_pair.get_pair_shapes()
