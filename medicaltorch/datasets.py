@@ -77,13 +77,16 @@ class SegmentationPair2D(object):
         self.canonical = canonical
         self.cache = cache
 
+        # list of the images
         self.input_handle = []
+        # loop over the filenames (list)
         for input_file in self.input_filename:
             input_img = nib.load(input_file)
             self.input_handle.append(input_img)
             if len(input_img.shape) > 3:
                 raise RuntimeError("4-dimensional volumes not supported.")
 
+        # we consider only one gt per patient
         # Unlabeled data (inference time)
         if self.gt_filename is None:
             self.gt_handle = None
@@ -168,6 +171,7 @@ class SegmentationPair2D(object):
             raise RuntimeError("Invalid axis, must be between 0 and 2.")
 
         input_slice = []
+        # Loop over modalities
         for data_object in input_dataobj:
             if slice_axis == 2:
                 input_slice.append(np.asarray(data_object[..., slice_index],
@@ -250,6 +254,7 @@ class MRI2DSegmentationDataset(Dataset):
         for input_filename, gt_filename, roi_filename, metadata in self.filename_pairs:
             roi_pair = SegmentationPair2D(input_filename, roi_filename, metadata=metadata,
                                           cache=self.cache, canonical=self.canonical)
+
             seg_pair = SegmentationPair2D(input_filename, gt_filename, metadata=metadata,
                                           cache=self.cache, canonical=self.canonical)
 
@@ -327,10 +332,8 @@ class MRI2DSegmentationDataset(Dataset):
         input_metadata = []
         data_dict = {}
 
-        # Looping over all the inputs (just one or multiple)
+        # Looping over all modalities (one or more)
         for idx, input_slice in enumerate(seg_pair_slice["input"]):
-
-            # TODO: Check if we can switch to float8 instead
             # Consistency with torchvision, returning PIL Image
             # Using the "Float mode" of PIL, the only mode
             # supporting unbounded float32 values
@@ -339,41 +342,43 @@ class MRI2DSegmentationDataset(Dataset):
             input_tensors.append(input_img)
             input_metadata.append(seg_pair_slice['input_metadata'][idx])
 
-            # Handle unlabeled data
-            if seg_pair_slice["gt"] is None:
-                gt_img = None
-            else:
-                gt_img = (seg_pair_slice["gt"] * 255).astype(np.uint8)
-                gt_img = Image.fromarray(gt_img, mode='L')
+        # Handle unlabeled data
+        if seg_pair_slice["gt"] is None:
+            gt_img = None
+        else:
+            gt_img = (seg_pair_slice["gt"] * 255).astype(np.uint8)
+            gt_img = Image.fromarray(gt_img, mode='L')
 
-            # Handle data with no ROI provided
-            if roi_pair_slice["gt"] is None:
-                roi_img = None
-            else:
-                roi_img = (roi_pair_slice["gt"] * 255).astype(np.uint8)
-                roi_img = Image.fromarray(roi_img, mode='L')
+        # Handle data with no ROI provided
+        if roi_pair_slice["gt"] is None:
+            roi_img = None
+        else:
+            roi_img = (roi_pair_slice["gt"] * 255).astype(np.uint8)
+            roi_img = Image.fromarray(roi_img, mode='L')
 
-            data_dict = {
-                'input': input_img,
-                'gt': gt_img,
-                'roi': roi_img,
-                'input_metadata': seg_pair_slice['input_metadata'][idx],
-                'gt_metadata': seg_pair_slice['gt_metadata'],
-                'roi_metadata': roi_pair_slice['gt_metadata']
-            }
+        data_dict = {
+            'input': input_tensors,
+            'gt': gt_img,
+            'roi': roi_img,
+            'input_metadata': input_metadata,
+            'gt_metadata': seg_pair_slice['gt_metadata'],
+            'roi_metadata': roi_pair_slice['gt_metadata']
+        }
 
-            if self.transform is not None:
-                data_dict = self.transform(data_dict)
-            input_tensors.append(data_dict['input'])
-            input_metadata.append(data_dict['input_metadata'])
-
+        """"
+        Moving that part in ToTensor() transformation
+        input_tensors.append(data_dict['input'])
+        input_metadata.append(data_dict['input_metadata'])
+        
         if len(input_tensors) > 1:
             data_dict['input'] = torch.squeeze(torch.stack(input_tensors, dim=0))
             data_dict['input_metadata'] = input_metadata
-
+        """
         # Warning: both input_tensors and input_metadata are list. Transforms needs to take that into account.
+
         if self.transform is not None:
             data_dict = self.transform(data_dict)
+
         return data_dict
 
 
