@@ -4,6 +4,7 @@ import numbers
 import torchvision.transforms.functional as F
 from scipy.ndimage import center_of_mass
 from torchvision import transforms
+import torch
 from PIL import Image
 
 from scipy.ndimage.interpolation import map_coordinates
@@ -112,7 +113,19 @@ class ToPIL(MTTransform):
         return sample
 
 
-# useless ??
+class StackTensors(MTTransform):
+    """
+    Stack all modalities in a single vector.
+    """
+
+    def __call__(self, sample):
+        rdict = {}
+        input_data = sample['input']
+        rdict['input'] = torch.squeeze(torch.stack(input_data, dim=0))
+        sample.update(rdict)
+        return sample
+
+
 class UnCenterCrop2D(MTTransform):
     def __init__(self, size, segmentation=True):
         self.size = size
