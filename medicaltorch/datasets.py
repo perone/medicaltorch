@@ -258,7 +258,8 @@ class MRI2DSegmentationDataset(Dataset):
             for idx_pair_slice in range(input_data_shape[self.slice_axis]):
                 slice_seg_pair = seg_pair.get_pair_slice(idx_pair_slice,
                                                          self.slice_axis)
-                filter_fn_ret_seg = self.slice_filter_fn(slice_seg_pair)
+                if self.slice_filter_fn
+                    filter_fn_ret_seg = self.slice_filter_fn(slice_seg_pair)
                 if self.slice_filter_fn and not filter_fn_ret_seg:
                     continue
 
