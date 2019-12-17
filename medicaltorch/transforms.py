@@ -55,7 +55,7 @@ class ToTensor(MTTransform):
             # single input
             ret_input = F.to_tensor(input_data[0])
             # transform list of dic into single dic
-            rdict['input_metadata'] = sample[input_metadata][0]
+            rdict['input_metadata'] = sample['input_metadata'][0]
 
         rdict['input'] = ret_input
 
