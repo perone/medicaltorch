@@ -247,6 +247,7 @@ class MRI2DSegmentationDataset(Dataset):
         self.slice_axis = slice_axis
         self.slice_filter_fn = slice_filter_fn
         self.canonical = canonical
+        self.n_contrasts = len(self.filename_pairs[0][0])
 
         self._load_filenames()
 
@@ -282,40 +283,46 @@ class MRI2DSegmentationDataset(Dataset):
         self.transform = transform
 
     def compute_mean_std(self, verbose=False):
-        # TODO: adapt to multi channels
-
-        """Compute the mean and standard deviation of the entire dataset.
+        """Compute the mean and standard deviation of the entire dataset per modality.
 
         :param verbose: if True, it will show a progress bar.
         :returns: tuple (mean, std dev)
         """
-        sum_intensities = 0.0
-        numel = 0
+        sum_intensities = np.array([0.0] * self.n_contrasts)
+        numel = np.array([0] * self.n_contrasts)
 
         with DatasetManager(self, override_transform=mt_transforms.ToTensor()) as dset:
             pbar = tqdm(dset, desc="Mean calculation", disable=not verbose)
             for sample in pbar:
-                input_data = sample['input']
-                sum_intensities += input_data.sum()
-                numel += input_data.numel()
-                pbar.set_postfix(mean="{:.2f}".format(sum_intensities / numel),
+                for i in range(self.n_contrasts):
+                    input_data = sample['input'][i]
+                    sum_intensities[i] += input_data.sum()
+                    numel[i] += input_data.numel()
+                pbar.set_postfix(means=("-{:.2f} -" * self.n_contrasts).format(*(sum_intensities / numel)),
                                  refresh=False)
 
             training_mean = sum_intensities / numel
-
-            sum_var = 0.0
-            numel = 0
+            print("Training means are equal to {}".format(training_mean))
+            sum_var = np.array([0.0] * self.n_contrasts)
+            numel = np.array([0] * self.n_contrasts)
 
             pbar = tqdm(dset, desc="Std Dev calculation", disable=not verbose)
             for sample in pbar:
-                input_data = sample['input']
-                sum_var += (input_data - training_mean).pow(2).sum()
-                numel += input_data.numel()
-                pbar.set_postfix(std="{:.2f}".format(np.sqrt(sum_var / numel)),
+                for i in range(self.n_contrasts):
+                    input_data = sample['input'][i]
+                    sum_var[i] += (input_data - training_mean[i]).pow(2).sum()
+                    numel[i] += input_data.numel()
+                pbar.set_postfix(stds=("-{:.2f} -" * self.n_contrasts).format(*np.sqrt(sum_var / numel)),
                                  refresh=False)
 
-        training_std = np.sqrt(sum_var / numel)
-        return training_mean.item(), training_std.item()
+            training_std = np.sqrt(sum_var / numel)
+        # Converting tensors to numpy array
+        training_mean = [training_mean[i].item() for i in range(self.n_contrasts)]
+        training_std = [training_std[i].item() for i in range(self.n_contrasts)]
+        print("Training means are equal to {}".format(training_mean))
+        print("Training means are equal to {}".format(training_mean))
+
+        return training_mean, training_std
 
     def __len__(self):
         """Return the dataset size."""
