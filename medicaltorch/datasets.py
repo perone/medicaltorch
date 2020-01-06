@@ -60,18 +60,18 @@ class SegmentationPair2D(object):
     """This class is used to build 2D segmentation datasets. It represents
     a pair of of two data volumes (the input data and the ground truth data).
 
-    :param input_filename: the input filename list (supported by nibabel). For single channel, the list will contain 1
+    :param input_filenames: the input filename list (supported by nibabel). For single channel, the list will contain 1
                            input filename.
     :param gt_filename: the ground-truth filename.
-    :param metadata: metadata list related to images 1.  For single channel, the list will contain metadata related to
+    :param metadata: metadata list with each item corresponding to an image (modality) in input_filenames.  For single channel, the list will contain metadata related to
                      to one image.
     :param cache: if the data should be cached in memory or not.
     :param canonical: canonical reordering of the volume axes.
     """
 
-    def __init__(self, input_filename, gt_filename, metadata=None, cache=True, canonical=False):
+    def __init__(self, input_filenames, gt_filename, metadata=None, cache=True, canonical=False):
 
-        self.input_filename = input_filename
+        self.input_filenames = input_filenames
         self.gt_filename = gt_filename
         self.metadata = metadata
         self.canonical = canonical
@@ -79,8 +79,9 @@ class SegmentationPair2D(object):
 
         # list of the images
         self.input_handle = []
+
         # loop over the filenames (list)
-        for input_file in self.input_filename:
+        for input_file in self.input_filenames:
             input_img = nib.load(input_file)
             self.input_handle.append(input_img)
             if len(input_img.shape) > 3:
@@ -110,7 +111,7 @@ class SegmentationPair2D(object):
 
         if self.metadata:
             self.metadata = []
-            for data in metadata:
+            for data,input_filename in zip(metadata,input_filenames):
                 data["input_filename"] = input_filename
                 data["gt_filename"] = gt_filename
                 self.metadata.append(data)
@@ -264,7 +265,8 @@ class MRI2DSegmentationDataset(Dataset):
             for idx_pair_slice in range(input_data_shape[self.slice_axis]):
                 slice_seg_pair = seg_pair.get_pair_slice(idx_pair_slice,
                                                          self.slice_axis)
-                filter_fn_ret_seg = self.slice_filter_fn(slice_seg_pair)
+                if self.slice_filter_fn:
+                    filter_fn_ret_seg = self.slice_filter_fn(slice_seg_pair)
                 if self.slice_filter_fn and not filter_fn_ret_seg:
                     continue
 
