@@ -65,37 +65,37 @@ def hausdorff_score(prediction, groundtruth):
     return spatial.distance.directed_hausdorff(prediction, groundtruth)[0]
 
 
-def precision_score(prediction, groundtruth):
+def precision_score(prediction, groundtruth, err_value=0.0):
     # PPV
     FP, FN, TP, TN = numeric_score(prediction, groundtruth)
     if (TP + FP) <= 0.0:
-        return 0.0
+        return err_value
 
     precision = np.divide(TP, TP + FP)
     return precision * 100.0
 
 
-def recall_score(prediction, groundtruth):
+def recall_score(prediction, groundtruth, err_value=0.0):
     # TPR, sensitivity
     FP, FN, TP, TN = numeric_score(prediction, groundtruth)
     if (TP + FN) <= 0.0:
-        return 0.0
+        return err_value
     TPR = np.divide(TP, TP + FN)
     return TPR * 100.0
 
 
-def specificity_score(prediction, groundtruth):
+def specificity_score(prediction, groundtruth, err_value=0.0):
     FP, FN, TP, TN = numeric_score(prediction, groundtruth)
     if (TN + FP) <= 0.0:
-        return 0.0
+        return err_value
     TNR = np.divide(TN, TN + FP)
     return TNR * 100.0
 
 
-def intersection_over_union(prediction, groundtruth):
+def intersection_over_union(prediction, groundtruth, err_value=0.0):
     FP, FN, TP, TN = numeric_score(prediction, groundtruth)
     if (TP + FP + FN) <= 0.0:
-        return 0.0
+        return err_value
     return TP / (TP + FP + FN) * 100.0
 
 
