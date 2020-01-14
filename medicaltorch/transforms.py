@@ -118,6 +118,8 @@ class ToPIL(MTTransform):
 class StackTensors(MTTransform):
     """
     Stack all modalities in a single vector.
+
+    TODO: add reverse transformation
     """
 
     def __call__(self, sample):
@@ -127,7 +129,7 @@ class StackTensors(MTTransform):
         sample.update(rdict)
         return sample
 
-
+# fixed in https://github.com/neuropoly/ivado-medical-imaging/blob/master/ivadomed/transforms.py#L102-L120
 class UnCenterCrop2D(MTTransform):
     def __init__(self, size, segmentation=True):
         self.size = size
@@ -163,23 +165,25 @@ class Crop2D(MTTransform):
 
     @staticmethod
     def get_params(sample):
-        input_metadata = sample['input_metadata'][0]
-        return input_metadata["__centercrop"]
+        return [sample['input_metadata'][i]["__centercrop"] for i in range(len(sample))]
 
     def undo_transform(self, sample):
         rdict = {}
         input_data = sample['input']
-        fh, fw, w, h = self.get_params(sample)
+        params = self.get_params(sample)
         th, tw = self.size
-
-        pad_left = fw
-        pad_right = w - pad_left - tw
-        pad_top = fh
-        pad_bottom = h - pad_top - th
-
-        padding = (pad_left, pad_top, pad_right, pad_bottom)
         for i in range(len(input_data)):
+
+            fh, fw, w, h = params[i]
+
+            pad_left = fw
+            pad_right = w - pad_left - tw
+            pad_top = fh
+            pad_bottom = h - pad_top - th
+
+            padding = (pad_left, pad_top, pad_right, pad_bottom)
             input_data[i] = F.pad(input_data[i], padding)
+
         rdict['input'] = input_data
 
         sample.update(rdict)
@@ -199,15 +203,17 @@ class CenterCrop2D(Crop2D):
     def __call__(self, sample):
         rdict = {}
         input_data = sample['input']
-
-        w, h = input_data[0].size
         th, tw = self.size
-        fh = int(round((h - th) / 2.))
-        fw = int(round((w - tw) / 2.))
 
-        params = (fh, fw, w, h)
-        self.propagate_params(sample, params)
         for i in range(len(input_data)):
+            w, h = input_data[i].size
+
+            fh = int(round((h - th) / 2.))
+            fw = int(round((w - tw) / 2.))
+
+            params = (fh, fw, w, h)
+            self.propagate_params(sample, params)
+
             input_data[i] = F.center_crop(input_data[i], self.size)
 
         rdict['input'] = input_data
@@ -215,6 +221,11 @@ class CenterCrop2D(Crop2D):
         if self.labeled:
             gt_data = sample['gt']
             gt_metadata = sample['gt_metadata']
+
+            w, h = gt_data.size
+            fh = int(round((h - th) / 2.))
+            fw = int(round((w - tw) / 2.))
+
             gt_data = F.center_crop(gt_data, self.size)
             gt_metadata["__centercrop"] = (fh, fw, w, h)
             rdict['gt'] = gt_data
@@ -273,6 +284,8 @@ class Normalize(MTTransform):
 
     :param mean: mean value.
     :param std: standard deviation value.
+
+    In case of multiple inputs, both mean and std are lists.
     """
 
     def __init__(self, mean, std):
@@ -281,8 +294,10 @@ class Normalize(MTTransform):
 
     def __call__(self, sample):
         input_data = sample['input']
-
-        input_data = [F.normalize(input_data[i], self.mean, self.std) for i in range(len(input_data))]
+        if isinstance(input_data, list):
+            input_data = [F.normalize(input_data[i], self.mean[i], self.std[i]) for i in range(len(input_data))]
+        else:
+            input_data = F.normalize(input_data, self.mean, self.std)
 
         rdict = {
             'input': input_data,
@@ -327,16 +342,26 @@ class NormalizeInstance3D(MTTransform):
     def __call__(self, sample):
         input_data_normalized = []
         input_data = sample['input']
-        for i in range(len(input_data)):
+        if isinstance(input_data, list):
+            for i in range(len(input_data)):
+                input_volume = input_data[i]
+                mean, std = input_volume.mean(), input_volume.std()
+                if mean != 0 or std != 0:
+                    input_data_normalized.append(F.normalize(input_volume,
+                                                             [mean for _ in range(0, input_volume.shape[0])],
+                                                             [std for _ in range(0, input_volume.shape[0])]))
+
+        else:
             mean, std = input_data.mean(), input_data.std()
+
             if mean != 0 or std != 0:
-                input_data_normalized.append(F.normalize(input_data,
-                                                         [mean for _ in range(0, input_data.shape[0])],
-                                                         [std for _ in range(0, input_data.shape[0])]))
-            rdict = {
-                'input': input_data_normalized,
-            }
-            sample.update(rdict)
+                input_data_normalized = F.normalize(input_data,
+                                                    [mean for _ in range(0, input_data.shape[0])],
+                                                    [std for _ in range(0, input_data.shape[0])])
+        rdict = {
+            'input': input_data_normalized,
+        }
+        sample.update(rdict)
         return sample
 
 

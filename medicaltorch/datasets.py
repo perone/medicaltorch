@@ -302,7 +302,6 @@ class MRI2DSegmentationDataset(Dataset):
                                  refresh=False)
 
             training_mean = sum_intensities / numel
-            print("Training means are equal to {}".format(training_mean))
             sum_var = np.array([0.0] * self.n_contrasts)
             numel = np.array([0] * self.n_contrasts)
 
@@ -319,9 +318,6 @@ class MRI2DSegmentationDataset(Dataset):
         # Converting tensors to numpy array
         training_mean = [training_mean[i].item() for i in range(self.n_contrasts)]
         training_std = [training_std[i].item() for i in range(self.n_contrasts)]
-        print("Training means are equal to {}".format(training_mean))
-        print("Training means are equal to {}".format(training_mean))
-
         return training_mean, training_std
 
     def __len__(self):
