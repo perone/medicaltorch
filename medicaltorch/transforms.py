@@ -129,21 +129,6 @@ class StackTensors(MTTransform):
         sample.update(rdict)
         return sample
 
-# fixed in https://github.com/neuropoly/ivado-medical-imaging/blob/master/ivadomed/transforms.py#L102-L120
-class UnCenterCrop2D(MTTransform):
-    def __init__(self, size, segmentation=True):
-        self.size = size
-        self.segmentation = segmentation
-
-    def __call__(self, sample):
-        input_data, gt_data = sample['input'], sample['gt']
-        input_metadata, gt_metadata = sample['input_metadata'], sample['gt_metadata']
-
-        (fh, fw, w, h) = input_metadata["__centercrop"]
-        (fh, fw, w, h) = gt_metadata["__centercrop"]
-
-        return sample
-
 
 class Crop2D(MTTransform):
     """Make a center crop of a specified size.
@@ -230,6 +215,24 @@ class CenterCrop2D(Crop2D):
             gt_metadata["__centercrop"] = (fh, fw, w, h)
             rdict['gt'] = gt_data
 
+        sample.update(rdict)
+        return sample
+
+    # Reverse transformation. Implemented by @charleygros
+    def _uncrop(self, data, params):
+        fh, fw, w, h = params
+        th, tw = self.size
+        pad_left = fw
+        pad_right = w - pad_left - tw
+        pad_top = fh
+        pad_bottom = h - pad_top - th
+        padding = (pad_left, pad_top, pad_right, pad_bottom)
+        return F.pad(data, padding)
+
+    def undo_transform(self, sample):
+        rdict = {}
+        rdict['input'] = self._uncrop(sample['input'], sample['input_metadata']["__centercrop"])
+        rdict['gt'] = self._uncrop(sample['gt'], sample['gt_metadata']["__centercrop"])
         sample.update(rdict)
         return sample
 
