@@ -94,10 +94,10 @@ class ToPIL(MTTransform):
         rdict = {}
         input_data = sample['input']
 
-        if len(input_data) > 1:
+        if isinstance(input_data, list):
             ret_input = [self.sample_transform(item) for item in input_data]
         else:
-            ret_input = self.sample_transform(input_data[0])
+            ret_input = self.sample_transform(input_data)
 
         rdict['input'] = ret_input
 
