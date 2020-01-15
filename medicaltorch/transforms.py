@@ -401,15 +401,15 @@ class RandomRotation3D(MTTransform):
             if self.axis == 0:
                 input_rotated[x, :, :] = F.rotate(Image.fromarray(input_data[x, :, :], mode='F'), angle)
                 if self.labeled:
-                    gt_rotated[x, :, :] = F.rotate(Image.fromarray(gt_data[x, :, :], mode='L'), angle)
+                    gt_rotated[x, :, :] = F.rotate(Image.fromarray(gt_data[x, :, :], mode='F'), angle)
             if self.axis == 1:
                 input_rotated[:, x, :] = F.rotate(Image.fromarray(input_data[:, x, :], mode='F'), angle)
                 if self.labeled:
-                    gt_rotated[:, x, :] = F.rotate(Image.fromarray(gt_data[:, x, :], mode='L'), angle)
+                    gt_rotated[:, x, :] = F.rotate(Image.fromarray(gt_data[:, x, :], mode='F'), angle)
             if self.axis == 2:
                 input_rotated[:, :, x] = F.rotate(Image.fromarray(input_data[:, :, x], mode='F'), angle)
                 if self.labeled:
-                    gt_rotated[:, :, x] = F.rotate(Image.fromarray(gt_data[:, :, x], mode='L'), angle)
+                    gt_rotated[:, :, x] = F.rotate(Image.fromarray(gt_data[:, :, x], mode='F'), angle)
 
         rdict['input'] = input_rotated
         if self.labeled:
@@ -676,7 +676,7 @@ class ElasticTransform(MTTransform):
                              for item in input_data]
             else:
                 ret_input = self.sample_augment(input_data, params)
-
+                
             rdict['input'] = ret_input
 
             if self.labeled:
