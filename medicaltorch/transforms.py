@@ -143,8 +143,7 @@ class Crop2D(MTTransform):
         self.labeled = labeled
 
     @staticmethod
-    def propagate_params(sample, params):
-        input_metadata = sample['input_metadata'][0]
+    def propagate_params(input_metadata, params):
         input_metadata["__centercrop"] = params
         return input_metadata
 
@@ -195,10 +194,11 @@ class CenterCrop2D(Crop2D):
 
             fh = int(round((h - th) / 2.))
             fw = int(round((w - tw) / 2.))
-
             params = (fh, fw, w, h)
-            self.propagate_params(sample, params)
 
+            # Updating the parameters in the input metadata
+            self.propagate_params(sample['input_metadata'][i], params)
+            # Cropping
             input_data[i] = F.center_crop(input_data[i], self.size)
 
         rdict['input'] = input_data
@@ -218,7 +218,7 @@ class CenterCrop2D(Crop2D):
         sample.update(rdict)
         return sample
 
-    # Reverse transformation. Implemented by @charleygros
+    # Reverse transformation. Implemented by @Charleygros
     def _uncrop(self, data, params):
         fh, fw, w, h = params
         th, tw = self.size
@@ -231,7 +231,10 @@ class CenterCrop2D(Crop2D):
 
     def undo_transform(self, sample):
         rdict = {}
-        rdict['input'] = self._uncrop(sample['input'], sample['input_metadata']["__centercrop"])
+
+        for i in range(len(sample['input'])):
+            rdict['input'] = self._uncrop(sample['input'][i], sample['input_metadata'][i]["__centercrop"])
+
         rdict['gt'] = self._uncrop(sample['gt'], sample['gt_metadata']["__centercrop"])
         sample.update(rdict)
         return sample
@@ -252,22 +255,23 @@ class ROICrop2D(Crop2D):
         input_data = sample['input']
         roi_data = sample['roi']
 
-        w, h = input_data[0].size
-        th, tw = self.size
-        th_half, tw_half = int(round(th / 2.)), int(round(tw / 2.))
-
         # compute center of mass of the ROI
         x_roi, y_roi = center_of_mass(np.array(roi_data).astype(np.int))
         x_roi, y_roi = int(round(x_roi)), int(round(y_roi))
 
-        # compute top left corner of the crop area
-        fh = y_roi - th_half
-        fw = x_roi - tw_half
-        params = (fh, fw, w, h)
-        self.propagate_params(sample, params)
-
-        # crop data
         for i in range(len(input_data)):
+            w, h = input_data[i].size
+            th, tw = self.size
+            th_half, tw_half = int(round(th / 2.)), int(round(tw / 2.))
+
+            # compute top left corner of the crop area
+            fh = y_roi - th_half
+            fw = x_roi - tw_half
+            params = (fh, fw, w, h)
+
+            self.propagate_params(sample['input_metadata'][i], params)
+
+            # crop data
             input_data[i] = F.crop(input_data[i], fw, fh, tw, th)
         rdict['input'] = input_data
 
