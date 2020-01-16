@@ -143,7 +143,8 @@ class Crop2D(MTTransform):
         self.labeled = labeled
 
     @staticmethod
-    def propagate_params(input_metadata, params):
+    def propagate_params(sample, params, i):
+        input_metadata = sample['input_metadata'][i]
         input_metadata["__centercrop"] = params
         return input_metadata
 
@@ -197,7 +198,7 @@ class CenterCrop2D(Crop2D):
             params = (fh, fw, w, h)
 
             # Updating the parameters in the input metadata
-            self.propagate_params(sample['input_metadata'][i], params)
+            self.propagate_params(sample, params, i)
             # Cropping
             input_data[i] = F.center_crop(input_data[i], self.size)
 
@@ -231,9 +232,11 @@ class CenterCrop2D(Crop2D):
 
     def undo_transform(self, sample):
         rdict = {}
-
-        for i in range(len(sample['input'])):
-            rdict['input'] = self._uncrop(sample['input'][i], sample['input_metadata'][i]["__centercrop"])
+        if isinstance(sample['input'], list):
+            for i in range(len(sample['input'])):
+                rdict['input'] = self._uncrop(sample['input'][i], sample['input_metadata'][i]["__centercrop"])
+        else:
+            rdict['input'] = self._uncrop(sample['input'], sample['input_metadata']["__centercrop"])
 
         rdict['gt'] = self._uncrop(sample['gt'], sample['gt_metadata']["__centercrop"])
         sample.update(rdict)
@@ -269,7 +272,7 @@ class ROICrop2D(Crop2D):
             fw = x_roi - tw_half
             params = (fh, fw, w, h)
 
-            self.propagate_params(sample['input_metadata'][i], params)
+            self.propagate_params(sample, params, i)
 
             # crop data
             input_data[i] = F.crop(input_data[i], fw, fh, tw, th)
