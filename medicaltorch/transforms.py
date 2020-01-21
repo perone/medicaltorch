@@ -2,7 +2,9 @@ import skimage
 import numpy as np
 import numbers
 import torchvision.transforms.functional as F
+from scipy.ndimage import center_of_mass
 from torchvision import transforms
+import torch
 from PIL import Image
 
 from scipy.ndimage.interpolation import map_coordinates
@@ -37,7 +39,7 @@ class UndoTransform(object):
 
 
 class ToTensor(MTTransform):
-    """Convert a PIL image or numpy array to a PyTorch tensor."""
+    """Convert a PIL image(s) or numpy array(s) to a PyTorch tensor(s)."""
 
     def __init__(self, labeled=True):
         self.labeled = labeled
@@ -46,11 +48,14 @@ class ToTensor(MTTransform):
         rdict = {}
         input_data = sample['input']
 
-        if isinstance(input_data, list):
-            ret_input = [F.to_tensor(item)
-                         for item in input_data]
+        if len(input_data) > 1:
+            # Multiple inputs
+            ret_input = [F.to_tensor(item) for item in input_data]
         else:
-            ret_input = F.to_tensor(input_data)
+            # single input
+            ret_input = F.to_tensor(input_data[0])
+            # transform list of dic into single dic
+            rdict['input_metadata'] = sample['input_metadata'][0]
 
         rdict['input'] = ret_input
 
@@ -58,9 +63,10 @@ class ToTensor(MTTransform):
             gt_data = sample['gt']
             if gt_data is not None:
                 if isinstance(gt_data, list):
-                    ret_gt = [F.to_tensor(item)
-                              for item in gt_data]
+                    # multiple GT
+                    ret_gt = [F.to_tensor(item) for item in gt_data]
                 else:
+                    # single GT
                     ret_gt = F.to_tensor(gt_data)
 
                 rdict['gt'] = ret_gt
@@ -89,8 +95,7 @@ class ToPIL(MTTransform):
         input_data = sample['input']
 
         if isinstance(input_data, list):
-            ret_input = [self.sample_transform(item)
-                         for item in input_data]
+            ret_input = [self.sample_transform(item) for item in input_data]
         else:
             ret_input = self.sample_transform(input_data)
 
@@ -100,8 +105,7 @@ class ToPIL(MTTransform):
             gt_data = sample['gt']
 
             if isinstance(gt_data, list):
-                ret_gt = [self.sample_transform(item)
-                          for item in gt_data]
+                ret_gt = [self.sample_transform(item) for item in gt_data]
             else:
                 ret_gt = self.sample_transform(gt_data)
 
@@ -111,18 +115,18 @@ class ToPIL(MTTransform):
         return sample
 
 
-class UnCenterCrop2D(MTTransform):
-    def __init__(self, size, segmentation=True):
-        self.size = size
-        self.segmentation = segmentation
+class StackTensors(MTTransform):
+    """
+    Stack all modalities in a single vector.
+
+    TODO: add reverse transformation
+    """
 
     def __call__(self, sample):
-        input_data, gt_data = sample['input'], sample['gt']
-        input_metadata, gt_metadata = sample['input_metadata'], sample['gt_metadata']
-
-        (fh, fw, w, h) = input_metadata["__centercrop"]
-        (fh, fw, w, h) = gt_metadata["__centercrop"]
-
+        rdict = {}
+        input_data = sample['input']
+        rdict['input'] = torch.squeeze(torch.stack(input_data, dim=0))
+        sample.update(rdict)
         return sample
 
 
@@ -139,29 +143,32 @@ class Crop2D(MTTransform):
         self.labeled = labeled
 
     @staticmethod
-    def propagate_params(sample, params):
-        input_metadata = sample['input_metadata']
+    def propagate_params(sample, params, i):
+        input_metadata = sample['input_metadata'][i]
         input_metadata["__centercrop"] = params
         return input_metadata
 
     @staticmethod
     def get_params(sample):
-        input_metadata = sample['input_metadata']
-        return input_metadata["__centercrop"]
+        return [sample['input_metadata'][i]["__centercrop"] for i in range(len(sample))]
 
     def undo_transform(self, sample):
         rdict = {}
         input_data = sample['input']
-        fh, fw, w, h = self.get_params(sample)
+        params = self.get_params(sample)
         th, tw = self.size
+        for i in range(len(input_data)):
 
-        pad_left = fw
-        pad_right = w - pad_left - tw
-        pad_top = fh
-        pad_bottom = h - pad_top - th
+            fh, fw, w, h = params[i]
 
-        padding = (pad_left, pad_top, pad_right, pad_bottom)
-        input_data = F.pad(input_data, padding)
+            pad_left = fw
+            pad_right = w - pad_left - tw
+            pad_top = fh
+            pad_bottom = h - pad_top - th
+
+            padding = (pad_left, pad_top, pad_right, pad_bottom)
+            input_data[i] = F.pad(input_data[i], padding)
+
         rdict['input'] = input_data
 
         sample.update(rdict)
@@ -181,25 +188,57 @@ class CenterCrop2D(Crop2D):
     def __call__(self, sample):
         rdict = {}
         input_data = sample['input']
-
-        w, h = input_data.size
         th, tw = self.size
-        fh = int(round((h - th) / 2.))
-        fw = int(round((w - tw) / 2.))
 
-        params = (fh, fw, w, h)
-        self.propagate_params(sample, params)
+        for i in range(len(input_data)):
+            w, h = input_data[i].size
 
-        input_data = F.center_crop(input_data, self.size)
+            fh = int(round((h - th) / 2.))
+            fw = int(round((w - tw) / 2.))
+            params = (fh, fw, w, h)
+
+            # Updating the parameters in the input metadata
+            self.propagate_params(sample, params, i)
+            # Cropping
+            input_data[i] = F.center_crop(input_data[i], self.size)
+
         rdict['input'] = input_data
 
         if self.labeled:
             gt_data = sample['gt']
             gt_metadata = sample['gt_metadata']
+
+            w, h = gt_data.size
+            fh = int(round((h - th) / 2.))
+            fw = int(round((w - tw) / 2.))
+
             gt_data = F.center_crop(gt_data, self.size)
             gt_metadata["__centercrop"] = (fh, fw, w, h)
             rdict['gt'] = gt_data
 
+        sample.update(rdict)
+        return sample
+
+    # Reverse transformation. Implemented by @Charleygros
+    def _uncrop(self, data, params):
+        fh, fw, w, h = params
+        th, tw = self.size
+        pad_left = fw
+        pad_right = w - pad_left - tw
+        pad_top = fh
+        pad_bottom = h - pad_top - th
+        padding = (pad_left, pad_top, pad_right, pad_bottom)
+        return F.pad(data, padding)
+
+    def undo_transform(self, sample):
+        rdict = {}
+        if isinstance(sample['input'], list):
+            for i in range(len(sample['input'])):
+                rdict['input'] = self._uncrop(sample['input'][i], sample['input_metadata'][i]["__centercrop"])
+        else:
+            rdict['input'] = self._uncrop(sample['input'], sample['input_metadata']["__centercrop"])
+
+        rdict['gt'] = self._uncrop(sample['gt'], sample['gt_metadata']["__centercrop"])
         sample.update(rdict)
         return sample
 
@@ -219,22 +258,24 @@ class ROICrop2D(Crop2D):
         input_data = sample['input']
         roi_data = sample['roi']
 
-        w, h = input_data.size
-        th, tw = self.size
-        th_half, tw_half = int(round(th / 2.)), int(round(tw / 2.))
-
         # compute center of mass of the ROI
         x_roi, y_roi = center_of_mass(np.array(roi_data).astype(np.int))
         x_roi, y_roi = int(round(x_roi)), int(round(y_roi))
 
-        # compute top left corner of the crop area
-        fh = y_roi - th_half
-        fw = x_roi - tw_half
-        params = (fh, fw, w, h)
-        self.propagate_params(sample, params)
+        for i in range(len(input_data)):
+            w, h = input_data[i].size
+            th, tw = self.size
+            th_half, tw_half = int(round(th / 2.)), int(round(tw / 2.))
 
-        # crop data
-        input_data = F.crop(input_data, fw, fh, tw, th)
+            # compute top left corner of the crop area
+            fh = y_roi - th_half
+            fw = x_roi - tw_half
+            params = (fh, fw, w, h)
+
+            self.propagate_params(sample, params, i)
+
+            # crop data
+            input_data[i] = F.crop(input_data[i], fw, fh, tw, th)
         rdict['input'] = input_data
 
         if self.labeled:
@@ -253,6 +294,8 @@ class Normalize(MTTransform):
 
     :param mean: mean value.
     :param std: standard deviation value.
+
+    In case of multiple inputs, both mean and std are lists.
     """
 
     def __init__(self, mean, std):
@@ -261,8 +304,10 @@ class Normalize(MTTransform):
 
     def __call__(self, sample):
         input_data = sample['input']
-
-        input_data = F.normalize(input_data, self.mean, self.std)
+        if isinstance(input_data, list):
+            input_data = [F.normalize(input_data[i], self.mean[i], self.std[i]) for i in range(len(input_data))]
+        else:
+            input_data = F.normalize(input_data, self.mean, self.std)
 
         rdict = {
             'input': input_data,
@@ -281,10 +326,14 @@ class NormalizeInstance(MTTransform):
 
     def __call__(self, sample):
         input_data = sample['input']
-
-        mean, std = input_data.mean(), input_data.std()
-        input_data = F.normalize(input_data, [mean], [std])
-
+        if isinstance(input_data, list):
+            for i in range(len(input_data)):
+                mean, std = input_data[i].mean(), input_data[i].std()
+                input_data[i] = F.normalize(input_data[i], [mean], [std])
+        else:
+            mean, std = input_data.mean(), input_data.std()
+            input_data = F.normalize(input_data, [mean], [std])
+        
         rdict = {
             'input': input_data,
         }
@@ -301,19 +350,28 @@ class NormalizeInstance3D(MTTransform):
     """
 
     def __call__(self, sample):
+        input_data_normalized = []
         input_data = sample['input']
+        if isinstance(input_data, list):
+            for i in range(len(input_data)):
+                input_volume = input_data[i]
+                mean, std = input_volume.mean(), input_volume.std()
+                if mean != 0 or std != 0:
+                    input_data_normalized.append(F.normalize(input_volume,
+                                                             [mean for _ in range(0, input_volume.shape[0])],
+                                                             [std for _ in range(0, input_volume.shape[0])]))
 
-        mean, std = input_data.mean(), input_data.std()
+        else:
+            mean, std = input_data.mean(), input_data.std()
 
-        if mean != 0 or std != 0:
-            input_data_normalized = F.normalize(input_data,
-                                                [mean for _ in range(0, input_data.shape[0])],
-                                                [std for _ in range(0, input_data.shape[0])])
-
-            rdict = {
-                'input': input_data_normalized,
-            }
-            sample.update(rdict)
+            if mean != 0 or std != 0:
+                input_data_normalized = F.normalize(input_data,
+                                                    [mean for _ in range(0, input_data.shape[0])],
+                                                    [std for _ in range(0, input_data.shape[0])])
+        rdict = {
+            'input': input_data_normalized,
+        }
+        sample.update(rdict)
         return sample
 
 
@@ -342,11 +400,12 @@ class RandomRotation(MTTransform):
 
     def __call__(self, sample):
         rdict = {}
-        input_data = sample['input']
+        input_data = sample['input'][0]
         angle = self.get_params(self.degrees)
-        input_data = F.rotate(input_data, angle,
-                              self.resample, self.expand,
-                              self.center)
+        for i in range(len(input_data)):
+            input_data[i] = F.rotate(input_data[i], angle,
+                                     self.resample, self.expand,
+                                     self.center)
         rdict['input'] = input_data
 
         if self.labeled:
@@ -387,29 +446,30 @@ class RandomRotation3D(MTTransform):
     def __call__(self, sample):
         rdict = {}
         input_data = sample['input']
-        if len(sample['input'].shape) != 3:
+        if len(sample['input'][0].shape) != 3:
             raise ValueError("Input of RandomRotation3D should be a 3 dimensionnal tensor.")
 
         angle = self.get_params(self.degrees)
-        input_rotated = np.zeros(input_data.shape, dtype=input_data.dtype)
+        input_rotated = [np.zeros(input_data[0].shape, dtype=input_data.dtype) for i in range(len(input_data))]
         gt_data = sample['gt'] if self.labeled else None
         gt_rotated = np.zeros(gt_data.shape, dtype=gt_data.dtype) if self.labeled else None
 
         # TODO: Would be faster with only one vectorial operation
         # TODO: Use the axis index for factoring this loop
-        for x in range(input_data.shape[self.axis]):
-            if self.axis == 0:
-                input_rotated[x, :, :] = F.rotate(Image.fromarray(input_data[x, :, :], mode='F'), angle)
-                if self.labeled:
-                    gt_rotated[x, :, :] = F.rotate(Image.fromarray(gt_data[x, :, :], mode='L'), angle)
-            if self.axis == 1:
-                input_rotated[:, x, :] = F.rotate(Image.fromarray(input_data[:, x, :], mode='F'), angle)
-                if self.labeled:
-                    gt_rotated[:, x, :] = F.rotate(Image.fromarray(gt_data[:, x, :], mode='L'), angle)
-            if self.axis == 2:
-                input_rotated[:, :, x] = F.rotate(Image.fromarray(input_data[:, :, x], mode='F'), angle)
-                if self.labeled:
-                    gt_rotated[:, :, x] = F.rotate(Image.fromarray(gt_data[:, :, x], mode='L'), angle)
+        for i in range(len(input_data)):
+            for x in range(input_data[0].shape[self.axis]):
+                if self.axis == 0:
+                    input_rotated[i, x, :, :] = F.rotate(Image.fromarray(input_data[x, :, :], mode='F'), angle)
+                    if self.labeled:
+                        gt_rotated[i, x, :, :] = F.rotate(Image.fromarray(gt_data[x, :, :], mode='L'), angle)
+                if self.axis == 1:
+                    input_rotated[i, :, x, :] = F.rotate(Image.fromarray(input_data[:, x, :], mode='F'), angle)
+                    if self.labeled:
+                        gt_rotated[i, :, x, :] = F.rotate(Image.fromarray(gt_data[:, x, :], mode='L'), angle)
+                if self.axis == 2:
+                    input_rotated[i, :, :, x] = F.rotate(Image.fromarray(input_data[:, :, x], mode='F'), angle)
+                    if self.labeled:
+                        gt_rotated[i, :, :, x] = F.rotate(Image.fromarray(gt_data[:, :, x], mode='L'), angle)
 
         rdict['input'] = input_rotated
         if self.labeled:
@@ -432,13 +492,13 @@ class RandomReverse3D(MTTransform):
         input_data = sample['input']
         gt_data = sample['gt'] if self.labeled else None
         if np.random.randint(2) == 1:
-            input_data = np.flip(input_data, axis=0).copy()
+            input_data = np.flip(input_data, axis=1).copy()
             if self.labeled: gt_data = np.flip(gt_data, axis=0).copy()
         if np.random.randint(2) == 1:
-            input_data = np.flip(input_data, axis=1).copy()
+            input_data = np.flip(input_data, axis=2).copy()
             if self.labeled: gt_data = np.flip(gt_data, axis=1).copy()
         if np.random.randint(2) == 1:
-            input_data = np.flip(input_data, axis=2).copy()
+            input_data = np.flip(input_data, axis=3).copy()
             if self.labeled: gt_data = np.flip(gt_data, axis=2).copy()
 
         rdict['input'] = input_data
@@ -544,10 +604,7 @@ class RandomAffine(MTTransform):
         rdict = {}
         input_data = sample['input']
 
-        if isinstance(input_data, list):
-            input_data_size = input_data[0].size
-        else:
-            input_data_size = input_data.size
+        input_data_size = input_data[0].size
 
         params = self.get_params(self.degrees, self.translate, self.scale,
                                  self.shear, input_data_size)
@@ -595,14 +652,7 @@ class RandomTensorChannelShift(MTTransform):
         params = self.get_params(self.shift_range)
 
         if isinstance(input_data, list):
-            # ret_input = [self.sample_augment(item, params)
-            #             for item in input_data]
-
-            # Augment just the image, not the mask
-            # TODO: fix it later
-            ret_input = []
-            ret_input.append(self.sample_augment(input_data[0], params))
-            ret_input.append(input_data[1])
+            ret_input = [self.sample_augment(item, params) for item in input_data]
         else:
             ret_input = self.sample_augment(input_data, params)
 
@@ -718,7 +768,7 @@ class Resample(MTTransform):
     def __call__(self, sample):
         rdict = {}
         input_data = sample['input']
-        input_metadata = sample['input_metadata']
+        input_metadata = sample['input_metadata'][0]
 
         # Voxel dimension in mm
         hzoom, wzoom = input_metadata["zooms"]
@@ -730,14 +780,17 @@ class Resample(MTTransform):
         hshape_new = int(hshape * hfactor)
         wshape_new = int(wshape * wfactor)
 
-        input_data = input_data.resize((wshape_new, hshape_new),
-                                       resample=self.interpolation)
-        rdict['input'] = input_data
+        if isinstance(input_data, list):
+            ret_input = [item.resize((wshape_new, hshape_new), resample=self.interpolation) for item in input_data]
+        else:
+            ret_input = input_data.resize((wshape_new, hshape_new),
+                                          resample=self.interpolation)
+        rdict['input'] = ret_input
 
         if self.labeled:
             gt_data = sample['gt']
-            rdict['gt'] = resample_bin(gt_data, wshape_new,
-                                       hshape_new)
+            rdict['gt'] = self.resample_bin(gt_data, wshape_new,
+                                            hshape_new)
         if sample['roi'] is not None:
             roi_data = sample['roi']
             rdict['roi'] = self.resample_bin(roi_data, wshape_new,
@@ -756,13 +809,14 @@ class AdditiveGaussianNoise(MTTransform):
         rdict = {}
         input_data = sample['input']
 
-        noise = np.random.normal(self.mean, self.std, input_data.size)
+        noise = np.random.normal(self.mean, self.std, input_data[0].size)
         noise = noise.astype(np.float32)
-
-        np_input_data = np.array(input_data)
-        np_input_data += noise
-        input_data = Image.fromarray(np_input_data, mode='F')
-        rdict['input'] = input_data
+        noisy_input = []
+        for item in input_data:
+            np_input_data = np.array(item)
+            np_input_data += noise
+            noisy_input.append(Image.fromarray(np_input_data, mode='F'))
+        rdict['input'] = noisy_input
 
         sample.update(rdict)
         return sample
