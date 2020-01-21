@@ -491,13 +491,13 @@ class RandomReverse3D(MTTransform):
         input_data = sample['input']
         gt_data = sample['gt'] if self.labeled else None
         if np.random.randint(2) == 1:
-            input_data = np.flip(input_data, axis=1).copy()
+            input_data = np.flip(input_data, axis=0).copy()
             if self.labeled: gt_data = np.flip(gt_data, axis=0).copy()
         if np.random.randint(2) == 1:
-            input_data = np.flip(input_data, axis=2).copy()
+            input_data = np.flip(input_data, axis=1).copy()
             if self.labeled: gt_data = np.flip(gt_data, axis=1).copy()
         if np.random.randint(2) == 1:
-            input_data = np.flip(input_data, axis=3).copy()
+            input_data = np.flip(input_data, axis=2).copy()
             if self.labeled: gt_data = np.flip(gt_data, axis=2).copy()
 
         rdict['input'] = input_data
