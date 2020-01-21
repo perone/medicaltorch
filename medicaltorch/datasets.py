@@ -511,6 +511,7 @@ class MRI3DSubVolumeSegmentationDataset(MRI3DSegmentationDataset):
                           coord['z_min']:coord['z_max']]
 
         input_tensors = []
+        input_metadata = []
         gt_img = data_dict['gt']
         data_dict_copy = data_dict.copy()
         for idx, input_img in enumerate(data_dict_copy["input"]):
@@ -522,6 +523,7 @@ class MRI3DSubVolumeSegmentationDataset(MRI3DSegmentationDataset):
             if self.transform is not None:
                 data_dict = self.transform(data_dict)
             input_tensors.append(data_dict['input'])
+            input_metadata.append(seg_pair_slice['input_metadata'][idx])
 
         if len(input_tensors) > 1:
             data_dict['input'] = torch.squeeze(torch.stack(input_tensors, dim=0))
@@ -529,7 +531,7 @@ class MRI3DSubVolumeSegmentationDataset(MRI3DSegmentationDataset):
             data_dict['input'] = data_dict['input'][None, :, :, :]
         data_dict['gt'] = data_dict['gt'][None, :, :, :]
         data_dict['input_metadata']['data_shape'] = data_shape
-
+        data_dict['input_metadata'] = input_metadata
         return data_dict
 
 
