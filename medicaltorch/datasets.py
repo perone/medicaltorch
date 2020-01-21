@@ -77,13 +77,17 @@ class SegmentationPair2D(object):
         self.canonical = canonical
         self.cache = cache
 
+        # list of the images
         self.input_handle = []
+
+        # loop over the filenames (list)
         for input_file in self.input_filenames:
             input_img = nib.load(input_file)
             self.input_handle.append(input_img)
             if len(input_img.shape) > 3:
                 raise RuntimeError("4-dimensional volumes not supported.")
 
+        # we consider only one gt per patient
         # Unlabeled data (inference time)
         if self.gt_filename is None:
             self.gt_handle = None
@@ -168,6 +172,7 @@ class SegmentationPair2D(object):
             raise RuntimeError("Invalid axis, must be between 0 and 2.")
 
         input_slice = []
+        # Loop over modalities
         for data_object in input_dataobj:
             if slice_axis == 2:
                 input_slice.append(np.asarray(data_object[..., slice_index],
@@ -243,6 +248,7 @@ class MRI2DSegmentationDataset(Dataset):
         self.slice_axis = slice_axis
         self.slice_filter_fn = slice_filter_fn
         self.canonical = canonical
+        self.n_contrasts = len(self.filename_pairs[0][0])
 
         self._load_filenames()
         
@@ -250,6 +256,7 @@ class MRI2DSegmentationDataset(Dataset):
         for input_filename, gt_filename, roi_filename, metadata in self.filename_pairs:
             roi_pair = SegmentationPair2D(input_filename, roi_filename, metadata=metadata,
                                           cache=self.cache, canonical=self.canonical)
+
             seg_pair = SegmentationPair2D(input_filename, gt_filename, metadata=metadata,
                                           cache=self.cache, canonical=self.canonical)
 
@@ -270,7 +277,7 @@ class MRI2DSegmentationDataset(Dataset):
                 self.indexes.append(item)
 
     def set_transform(self, transform):
-        """This method will replace the current transformation for the
+        """ This method will replace the current transformation for the
         dataset.
 
         :param transform: the new transformation
@@ -278,39 +285,42 @@ class MRI2DSegmentationDataset(Dataset):
         self.transform = transform
 
     def compute_mean_std(self, verbose=False):
-        """Compute the mean and standard deviation of the entire dataset.
+        """Compute the mean and standard deviation of the entire dataset per modality.
 
         :param verbose: if True, it will show a progress bar.
         :returns: tuple (mean, std dev)
         """
-        sum_intensities = 0.0
-        numel = 0
+        sum_intensities = np.array([0.0] * self.n_contrasts)
+        numel = np.array([0] * self.n_contrasts)
 
-        with DatasetManager(self,
-                            override_transform=mt_transforms.ToTensor()) as dset:
+        with DatasetManager(self, override_transform=mt_transforms.ToTensor()) as dset:
             pbar = tqdm(dset, desc="Mean calculation", disable=not verbose)
             for sample in pbar:
-                input_data = sample['input']
-                sum_intensities += input_data.sum()
-                numel += input_data.numel()
-                pbar.set_postfix(mean="{:.2f}".format(sum_intensities / numel),
+                for i in range(self.n_contrasts):
+                    input_data = sample['input'][i]
+                    sum_intensities[i] += input_data.sum()
+                    numel[i] += input_data.numel()
+                pbar.set_postfix(means=("-{:.2f} -" * self.n_contrasts).format(*(sum_intensities / numel)),
                                  refresh=False)
 
             training_mean = sum_intensities / numel
-
-            sum_var = 0.0
-            numel = 0
+            sum_var = np.array([0.0] * self.n_contrasts)
+            numel = np.array([0] * self.n_contrasts)
 
             pbar = tqdm(dset, desc="Std Dev calculation", disable=not verbose)
             for sample in pbar:
-                input_data = sample['input']
-                sum_var += (input_data - training_mean).pow(2).sum()
-                numel += input_data.numel()
-                pbar.set_postfix(std="{:.2f}".format(np.sqrt(sum_var / numel)),
+                for i in range(self.n_contrasts):
+                    input_data = sample['input'][i]
+                    sum_var[i] += (input_data - training_mean[i]).pow(2).sum()
+                    numel[i] += input_data.numel()
+                pbar.set_postfix(stds=("-{:.2f} -" * self.n_contrasts).format(*np.sqrt(sum_var / numel)),
                                  refresh=False)
 
-        training_std = np.sqrt(sum_var / numel)
-        return training_mean.item(), training_std.item()
+            training_std = np.sqrt(sum_var / numel)
+        # Converting tensors to numpy array
+        training_mean = [training_mean[i].item() for i in range(self.n_contrasts)]
+        training_std = [training_std[i].item() for i in range(self.n_contrasts)]
+        return training_mean, training_std
 
     def __len__(self):
         """Return the dataset size."""
@@ -326,43 +336,53 @@ class MRI2DSegmentationDataset(Dataset):
         input_tensors = []
         input_metadata = []
         data_dict = {}
+
+        # Looping over all modalities (one or more)
         for idx, input_slice in enumerate(seg_pair_slice["input"]):
             # Consistency with torchvision, returning PIL Image
             # Using the "Float mode" of PIL, the only mode
             # supporting unbounded float32 values
+
             input_img = Image.fromarray(input_slice, mode='F')
+            input_tensors.append(input_img)
+            input_metadata.append(seg_pair_slice['input_metadata'][idx])
 
-            # Handle unlabeled data
-            if seg_pair_slice["gt"] is None:
-                gt_img = None
-            else:
-                gt_img = (seg_pair_slice["gt"] * 255).astype(np.uint8)
-                gt_img = Image.fromarray(gt_img, mode='L')
+        # Handle unlabeled data
+        if seg_pair_slice["gt"] is None:
+            gt_img = None
+        else:
+            gt_img = (seg_pair_slice["gt"] * 255).astype(np.uint8)
+            gt_img = Image.fromarray(gt_img, mode='L')
 
-            # Handle data with no ROI provided
-            if roi_pair_slice["gt"] is None:
-                roi_img = None
-            else:
-                roi_img = (roi_pair_slice["gt"] * 255).astype(np.uint8)
-                roi_img = Image.fromarray(roi_img, mode='L')
+        # Handle data with no ROI provided
+        if roi_pair_slice["gt"] is None:
+            roi_img = None
+        else:
+            roi_img = (roi_pair_slice["gt"] * 255).astype(np.uint8)
+            roi_img = Image.fromarray(roi_img, mode='L')
 
-            data_dict = {
-                'input': input_img,
-                'gt': gt_img,
-                'roi': roi_img,
-                'input_metadata': seg_pair_slice['input_metadata'][idx],
-                'gt_metadata': seg_pair_slice['gt_metadata'],
-                'roi_metadata': roi_pair_slice['gt_metadata']
-            }
+        data_dict = {
+            'input': input_tensors,
+            'gt': gt_img,
+            'roi': roi_img,
+            'input_metadata': input_metadata,
+            'gt_metadata': seg_pair_slice['gt_metadata'],
+            'roi_metadata': roi_pair_slice['gt_metadata']
+        }
 
-            if self.transform is not None:
-                data_dict = self.transform(data_dict)
-            input_tensors.append(data_dict['input'])
-            input_metadata.append(data_dict['input_metadata'])
-
+        """"
+        Moving that part in ToTensor() transformation
+        input_tensors.append(data_dict['input'])
+        input_metadata.append(data_dict['input_metadata'])
+        
         if len(input_tensors) > 1:
             data_dict['input'] = torch.squeeze(torch.stack(input_tensors, dim=0))
             data_dict['input_metadata'] = input_metadata
+        """
+        # Warning: both input_tensors and input_metadata are list. Transforms needs to take that into account.
+
+        if self.transform is not None:
+            data_dict = self.transform(data_dict)
 
         return data_dict
 
