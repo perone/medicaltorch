@@ -58,12 +58,6 @@ class ToTensor(MTTransform):
             # transform list of dic into single dic
             rdict['input_metadata'] = sample['input_metadata'][0]
 
-        if isinstance(input_data[0], np.ndarray) and len(input_data[0].shape) == 3:  # Add channel dimension
-            if isinstance(ret_input, list):
-                ret_input = [item.unsqueeze(0) for item in ret_input]
-            else:
-                ret_input = ret_input.unsqueeze(0)
-
         rdict['input'] = ret_input
 
         if self.labeled:
@@ -75,9 +69,6 @@ class ToTensor(MTTransform):
                 else:
                     # single GT
                     ret_gt = F.to_tensor(gt_data)
-
-                if isinstance(input_data[0], np.ndarray) and len(input_data[0].shape) == 3:  # Add channel dimension
-                    ret_gt = ret_gt.unsqueeze(0)
 
                 rdict['gt'] = ret_gt
         sample.update(rdict)
@@ -136,6 +127,7 @@ class StackTensors(MTTransform):
         rdict = {}
         input_data = sample['input']
         rdict['input'] = torch.squeeze(torch.stack(input_data, dim=0))
+        rdict['gt'] = sample['gt'].unsqueeze(0)
         sample.update(rdict)
         return sample
 
@@ -364,21 +356,21 @@ class NormalizeInstance3D(MTTransform):
         input_data = sample['input']
         if isinstance(input_data, list):
             for i in range(len(input_data)):
-                input_volume = input_data[i][0, :, :, :]
+                input_volume = input_data[i]
                 mean, std = input_volume.mean(), input_volume.std()
                 if mean != 0 or std != 0:
                     input_data_normalized.append(F.normalize(input_volume,
                                                              [mean for _ in range(0, input_volume.shape[0])],
-                                                             [std for _ in range(0, input_volume.shape[0])]).unsqueeze(0))
+                                                             [std for _ in range(0, input_volume.shape[0])]))
 
         else:
             mean, std = input_data.mean(), input_data.std()
 
             if mean != 0 or std != 0:
-                input_volume = input_data[0, :, :, :]
+                input_volume = input_data
                 input_data_normalized = F.normalize(input_volume,
                                                     [mean for _ in range(0, input_volume.shape[0])],
-                                                    [std for _ in range(0, input_volume.shape[0])]).unsqueeze(0)
+                                                    [std for _ in range(0, input_volume.shape[0])])
         rdict = {
             'input': input_data_normalized
         }
