@@ -51,9 +51,14 @@ class ToTensor(MTTransform):
         if len(input_data) > 1:
             # Multiple inputs
             ret_input = [F.to_tensor(item) for item in input_data]
+            if isinstance(input_data[0], np.ndarray) and len(input_data[0].shape) == 3:
+                ret_input = [item.unsqueeze(0) for item in ret_input]
         else:
             # single input
             ret_input = F.to_tensor(input_data[0])
+            if isinstance(input_data, np.ndarray) and input_data.shape == 3:  # Add channel dimension
+                ret_input = ret_input.unsqueeze(0)
+
             # transform list of dic into single dic
             rdict['input_metadata'] = sample['input_metadata'][0]
 
@@ -68,6 +73,10 @@ class ToTensor(MTTransform):
                 else:
                     # single GT
                     ret_gt = F.to_tensor(gt_data)
+
+                if (isinstance(input_data[0], np.ndarray) and len(input_data[0].shape) == 3) or \
+                    (isinstance(input_data, np.ndarray) and len(input_data.shape) == 3):  # Add channel dimension
+                    ret_gt = ret_gt.unsqueeze(0)
 
                 rdict['gt'] = ret_gt
         sample.update(rdict)
@@ -354,22 +363,23 @@ class NormalizeInstance3D(MTTransform):
         input_data = sample['input']
         if isinstance(input_data, list):
             for i in range(len(input_data)):
-                input_volume = input_data[i]
+                input_volume = input_data[i][0, :, :, :]
                 mean, std = input_volume.mean(), input_volume.std()
                 if mean != 0 or std != 0:
                     input_data_normalized.append(F.normalize(input_volume,
                                                              [mean for _ in range(0, input_volume.shape[0])],
-                                                             [std for _ in range(0, input_volume.shape[0])]))
+                                                             [std for _ in range(0, input_volume.shape[0])]).unsqueeze(0))
 
         else:
             mean, std = input_data.mean(), input_data.std()
 
             if mean != 0 or std != 0:
-                input_data_normalized = F.normalize(input_data,
-                                                    [mean for _ in range(0, input_data.shape[0])],
-                                                    [std for _ in range(0, input_data.shape[0])])
+                input_volume = input_data[0, :, :, :]
+                input_data_normalized = F.normalize(input_volume,
+                                                    [mean for _ in range(0, input_volume.shape[0])],
+                                                    [std for _ in range(0, input_volume.shape[0])]).unsqueeze(0)
         rdict = {
-            'input': input_data_normalized,
+            'input': input_data_normalized
         }
         sample.update(rdict)
         return sample
@@ -488,19 +498,24 @@ class RandomReverse3D(MTTransform):
 
     def __call__(self, sample):
         rdict = {}
-        input_data = sample['input']
+        input_list = sample['input']
+        if not isinstance(input_list, list):
+            input_list = [sample['input']]
         gt_data = sample['gt'] if self.labeled else None
-        if np.random.randint(2) == 1:
-            input_data = np.flip(input_data, axis=0).copy()
-            if self.labeled: gt_data = np.flip(gt_data, axis=0).copy()
-        if np.random.randint(2) == 1:
-            input_data = np.flip(input_data, axis=1).copy()
-            if self.labeled: gt_data = np.flip(gt_data, axis=1).copy()
-        if np.random.randint(2) == 1:
-            input_data = np.flip(input_data, axis=2).copy()
-            if self.labeled: gt_data = np.flip(gt_data, axis=2).copy()
+        reverse_input = []
+        for input_data in input_list:
+            if np.random.randint(2) == 1:
+                input_data = np.flip(input_data, axis=0).copy()
+                if self.labeled: gt_data = np.flip(gt_data, axis=0).copy()
+            if np.random.randint(2) == 1:
+                input_data = np.flip(input_data, axis=1).copy()
+                if self.labeled: gt_data = np.flip(gt_data, axis=1).copy()
+            if np.random.randint(2) == 1:
+                input_data = np.flip(input_data, axis=2).copy()
+                if self.labeled: gt_data = np.flip(gt_data, axis=2).copy()
+            reverse_input.append(input_data)
 
-        rdict['input'] = input_data
+        rdict['input'] = reverse_input
         if self.labeled: rdict['gt'] = gt_data
 
         sample.update(rdict)
