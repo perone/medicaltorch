@@ -545,10 +545,7 @@ class MRI3DSubVolumeSegmentationDataset(MRI3DSegmentationDataset):
             input_tensors.append(data_dict['input'])
             input_metadata.append(seg_pair_slice['input_metadata'][idx])
 
-        if len(input_tensors) > 1:
-            data_dict['input'] = torch.squeeze(torch.stack(input_tensors, dim=0))
-        else:
-            data_dict['input'] = data_dict['input'][None, :, :, :]
+        data_dict['input'] = input_tensors
         data_dict['gt'] = data_dict['gt'][None, :, :, :]
         data_dict['input_metadata']['data_shape'] = data_shape
         data_dict['input_metadata'] = input_metadata
