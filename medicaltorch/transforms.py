@@ -664,12 +664,14 @@ class RandomTensorChannelShift(MTTransform):
 
 
 class ElasticTransform(MTTransform):
+    "Elastic transform for 2D and 3D inputs"
     def __init__(self, alpha_range, sigma_range,
                  p=0.5, labeled=True):
         self.alpha_range = alpha_range
         self.sigma_range = sigma_range
         self.labeled = labeled
         self.p = p
+        self.is3D = False
 
     @staticmethod
     def get_params(alpha, sigma):
@@ -677,26 +679,35 @@ class ElasticTransform(MTTransform):
         sigma = np.random.uniform(sigma[0], sigma[1])
         return alpha, sigma
 
-    @staticmethod
-    def elastic_transform(image, alpha, sigma):
+    def elastic_transform(self, image, alpha, sigma):
         shape = image.shape
         dx = gaussian_filter((np.random.rand(*shape) * 2 - 1),
                              sigma, mode="constant", cval=0) * alpha
         dy = gaussian_filter((np.random.rand(*shape) * 2 - 1),
                              sigma, mode="constant", cval=0) * alpha
-
-        x, y = np.meshgrid(np.arange(shape[0]),
-                           np.arange(shape[1]), indexing='ij')
-        indices = np.reshape(x + dx, (-1, 1)), np.reshape(y + dy, (-1, 1))
+        if self.is3D:
+            dz = gaussian_filter((np.random.rand(*shape) * 2 - 1),
+                                 sigma, mode="constant", cval=0) * alpha
+            x, y, z = np.meshgrid(np.arange(shape[0]),
+                                  np.arange(shape[1]),
+                                  np.arange(shape[2]), indexing='ij')
+            indices = np.reshape(x + dx, (-1, 1)), np.reshape(y + dy, (-1, 1)), np.reshape(z + dz, (-1, 1))
+        else:
+            x, y = np.meshgrid(np.arange(shape[0]),
+                               np.arange(shape[1]), indexing='ij')
+            indices = np.reshape(x + dx, (-1, 1)), np.reshape(y + dy, (-1, 1))
         return map_coordinates(image, indices, order=1).reshape(shape)
 
     def sample_augment(self, input_data, params):
         param_alpha, param_sigma = params
-
         np_input_data = np.array(input_data)
+        if len(np_input_data.shape) == 3:
+            self.is3D = True
+
         np_input_data = self.elastic_transform(np_input_data,
                                                param_alpha, param_sigma)
-        input_data = Image.fromarray(np_input_data, mode='F')
+        if not self.is3D:
+            input_data = Image.fromarray(np_input_data, mode='F')
         return input_data
 
     def label_augment(self, gt_data, params):
@@ -705,10 +716,11 @@ class ElasticTransform(MTTransform):
         np_gt_data = np.array(gt_data)
         np_gt_data = self.elastic_transform(np_gt_data,
                                             param_alpha, param_sigma)
-        np_gt_data[np_gt_data >= 0.5] = 255.0
-        np_gt_data[np_gt_data < 0.5] = 0.0
-        np_gt_data = np_gt_data.astype(np.uint8)
-        gt_data = Image.fromarray(np_gt_data, mode='L')
+        if not self.is3D:
+            np_gt_data[np_gt_data >= 0.5] = 255.0
+            np_gt_data[np_gt_data < 0.5] = 0.0
+            np_gt_data = np_gt_data.astype(np.uint8)
+            gt_data = Image.fromarray(np_gt_data, mode='L')
 
         return gt_data
 
