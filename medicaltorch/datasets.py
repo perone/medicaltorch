@@ -251,7 +251,7 @@ class MRI2DSegmentationDataset(Dataset):
         self.n_contrasts = len(self.filename_pairs[0][0])
 
         self._load_filenames()
-        
+
     def _load_filenames(self):
         for input_filename, gt_filename, roi_filename, metadata in self.filename_pairs:
             roi_pair = SegmentationPair2D(input_filename, roi_filename, metadata=metadata,
@@ -530,25 +530,11 @@ class MRI3DSubVolumeSegmentationDataset(MRI3DSegmentationDataset):
                           coord['y_min']:coord['y_max'],
                           coord['z_min']:coord['z_max']]
 
-        input_tensors = []
-        input_metadata = []
-        gt_img = data_dict['gt']
-        data_dict_copy = data_dict.copy()
-        for idx, input_img in enumerate(data_dict_copy["input"]):
-            data_dict = {
-                'input': input_img,
-                'gt': gt_img,
-                'input_metadata': seg_pair_slice['input_metadata'][idx]
-            }
-            if self.transform is not None:
-                data_dict = self.transform(data_dict)
-            input_tensors.append(data_dict['input'])
-            input_metadata.append(seg_pair_slice['input_metadata'][idx])
-
-        data_dict['input'] = input_tensors
-        data_dict['gt'] = data_dict['gt'][None, :, :, :]
-        data_dict['input_metadata']['data_shape'] = data_shape
-        data_dict['input_metadata'] = input_metadata
+        data_dict['input_metadata'] = seg_pair_slice['input_metadata']
+        for idx in range(len(data_dict["input"])):
+            data_dict['input_metadata'][idx]['data_shape'] = data_shape
+        if self.transform is not None:
+            data_dict = self.transform(data_dict)
         return data_dict
 
 
