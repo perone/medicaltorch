@@ -51,16 +51,18 @@ class ToTensor(MTTransform):
         if len(input_data) > 1:
             # Multiple inputs
             ret_input = [F.to_tensor(item) for item in input_data]
-            if isinstance(input_data[0], np.ndarray) and len(input_data[0].shape) == 3:
-                ret_input = [item.unsqueeze(0) for item in ret_input]
         else:
             # single input
             ret_input = F.to_tensor(input_data[0])
-            if isinstance(input_data, np.ndarray) and input_data.shape == 3:  # Add channel dimension
-                ret_input = ret_input.unsqueeze(0)
 
             # transform list of dic into single dic
             rdict['input_metadata'] = sample['input_metadata'][0]
+
+        if isinstance(input_data[0], np.ndarray) and len(input_data[0].shape) == 3:  # Add channel dimension
+            if isinstance(ret_input, list):
+                ret_input = [item.unsqueeze(0) for item in ret_input]
+            else:
+                ret_input = ret_input.unsqueeze(0)
 
         rdict['input'] = ret_input
 
@@ -74,8 +76,7 @@ class ToTensor(MTTransform):
                     # single GT
                     ret_gt = F.to_tensor(gt_data)
 
-                if (isinstance(input_data[0], np.ndarray) and len(input_data[0].shape) == 3) or \
-                    (isinstance(input_data, np.ndarray) and len(input_data.shape) == 3):  # Add channel dimension
+                if isinstance(input_data[0], np.ndarray) and len(input_data[0].shape) == 3:  # Add channel dimension
                     ret_gt = ret_gt.unsqueeze(0)
 
                 rdict['gt'] = ret_gt
