@@ -111,7 +111,7 @@ class SegmentationPair2D(object):
 
         if self.metadata:
             self.metadata = []
-            for data,input_filename in zip(metadata,input_filenames):
+            for data, input_filename in zip(metadata, input_filenames):
                 data["input_filename"] = input_filename
                 data["gt_filename"] = gt_filename
                 self.metadata.append(data)
@@ -389,7 +389,6 @@ class MRI2DSegmentationDataset(Dataset):
 
 class MRI3DSegmentationDataset(Dataset):
     """This is a generic class for 3D segmentation datasets.
-
     :param filename_pairs: a list of tuples in the format (input filename,
                            ground truth filename).
     :param cache: if the data should be cached in memory or not.
@@ -408,15 +407,14 @@ class MRI3DSegmentationDataset(Dataset):
         self._load_filenames()
 
     def _load_filenames(self):
-        for input_filename, gt_filename in self.filename_pairs:
-            segpair = SegmentationPair2D(input_filename, gt_filename,
-                                         self.cache, self.canonical)
+        for input_filename, gt_filename, roi_filename, metadata in self.filename_pairs:
+            segpair = SegmentationPair2D(input_filename, gt_filename, metadata=metadata,
+                                         cache=self.cache, canonical=self.canonical)
             self.handlers.append(segpair)
 
     def set_transform(self, transform):
         """This method will replace the current transformation for the
         dataset.
-
         :param transform: the new transformation
         """
         self.transform = transform
@@ -427,7 +425,6 @@ class MRI3DSegmentationDataset(Dataset):
 
     def __getitem__(self, index):
         """Return the specific index pair volume (input, ground truth).
-
         :param index: volume index.
         """
         input_img, gt_img = self.handlers[index].get_pair_data()
@@ -467,20 +464,32 @@ class MRI3DSubVolumeSegmentationDataset(MRI3DSegmentationDataset):
         super().__init__(filename_pairs, cache, transform, canonical)
         self.length = length
         self.padding = padding
+        self.transform = transform
         self._prepare_indexes()
+        self._load_filenames()
 
     def _prepare_indexes(self):
         length = self.length
         padding = self.padding
 
+        crop = False
+        for transfo in self.transform.transforms:
+            if "CenterCrop3D" in str(type(transfo)):
+                crop = True
+                shape_crop = transfo.size
+                break
+
         for i in range(0, len(self.handlers)):
-            input_img, _ = self.handlers[i].get_pair_data()
-            shape = input_img.shape
-            if (shape[0] - 2 * padding) % length[0] != 0 \
-                    or (shape[1] - 2 * padding) % length[1] != 0 \
-                    or (shape[2] - 2 * padding) % length[2] != 0:
+            if not crop:
+                input_img, _ = self.handlers[i].get_pair_data()
+                shape = input_img[0].shape
+            else:
+                shape = shape_crop
+            if (shape[0] - 2 * padding) % length[0] != 0 or shape[0] % 16 != 0\
+                    or (shape[1] - 2 * padding) % length[1] != 0 or shape[1] % 16 != 0 \
+                    or (shape[2] - 2 * padding) % length[2] != 0 or shape[2] % 16 != 0:
                 raise RuntimeError('Input shape of each dimension should be a \
-                                    multiple of length plus 2 * padding')
+                                    multiple of length plus 2 * padding and a multiple of 16.')
 
             for x in range(length[0] + padding, shape[0] - padding + 1, length[0]):
                 for y in range(length[1] + padding, shape[1] - padding + 1, length[1]):
@@ -505,25 +514,27 @@ class MRI3DSubVolumeSegmentationDataset(MRI3DSegmentationDataset):
         """
         coord = self.indexes[index]
         input_img, gt_img = self.handlers[coord['handler_index']].get_pair_data()
+        data_shape = gt_img.shape
+        seg_pair_slice = self.handlers[coord['handler_index']].get_pair_slice(coord['handler_index'])
         data_dict = {
             'input': input_img,
             'gt': gt_img
         }
 
-        data_dict['input'] = data_dict['input'][coord['x_min']:coord['x_max'],
-                             coord['y_min']:coord['y_max'],
-                             coord['z_min']:coord['z_max']]
+        for idx in range(len(data_dict['input'])):
+            data_dict['input'][idx] = data_dict['input'][idx][coord['x_min']:coord['x_max'],
+                                      coord['y_min']:coord['y_max'],
+                                      coord['z_min']:coord['z_max']]
 
         data_dict['gt'] = data_dict['gt'][coord['x_min']:coord['x_max'],
                           coord['y_min']:coord['y_max'],
                           coord['z_min']:coord['z_max']]
 
+        data_dict['input_metadata'] = seg_pair_slice['input_metadata']
+        for idx in range(len(data_dict["input"])):
+            data_dict['input_metadata'][idx]['data_shape'] = data_shape
         if self.transform is not None:
             data_dict = self.transform(data_dict)
-
-        data_dict['input'] = data_dict['input'][None, :, :, :]
-        data_dict['gt'] = data_dict['gt'][None, :, :, :]
-
         return data_dict
 
 

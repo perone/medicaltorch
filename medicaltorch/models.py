@@ -265,10 +265,8 @@ class Unet(Module):
 
 class UNet3D(nn.Module):
     """A reference of 3D U-Net model.
-
     Implementation origin :
     https://github.com/shiba24/3d-unet/blob/master/pytorch/model.py
-
     .. seealso::
         Özgün Çiçek, Ahmed Abdulkadir, Soeren S. Lienkamp, Thomas Brox
         and Olaf Ronneberger (2016). 3D U-Net: Learning Dense Volumetric

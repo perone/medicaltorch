@@ -54,6 +54,7 @@ class ToTensor(MTTransform):
         else:
             # single input
             ret_input = F.to_tensor(input_data[0])
+
             # transform list of dic into single dic
             rdict['input_metadata'] = sample['input_metadata'][0]
 
@@ -125,7 +126,7 @@ class StackTensors(MTTransform):
     def __call__(self, sample):
         rdict = {}
         input_data = sample['input']
-        rdict['input'] = torch.squeeze(torch.stack(input_data, dim=0))
+        rdict['input'] = torch.squeeze(torch.cat(input_data, dim=0))
         sample.update(rdict)
         return sample
 
@@ -359,17 +360,19 @@ class NormalizeInstance3D(MTTransform):
                 if mean != 0 or std != 0:
                     input_data_normalized.append(F.normalize(input_volume,
                                                              [mean for _ in range(0, input_volume.shape[0])],
-                                                             [std for _ in range(0, input_volume.shape[0])]))
+                                                             [std for _ in range(0, input_volume.shape[0])]).unsqueeze(0))
 
         else:
             mean, std = input_data.mean(), input_data.std()
 
             if mean != 0 or std != 0:
-                input_data_normalized = F.normalize(input_data,
-                                                    [mean for _ in range(0, input_data.shape[0])],
-                                                    [std for _ in range(0, input_data.shape[0])])
+                input_volume = input_data
+                input_data_normalized = F.normalize(input_volume,
+                                                    [mean for _ in range(0, input_volume.shape[0])],
+                                                    [std for _ in range(0, input_volume.shape[0])]).unsqueeze(0)
         rdict = {
             'input': input_data_normalized,
+            'gt': sample['gt'].unsqueeze(0)
         }
         sample.update(rdict)
         return sample
@@ -455,21 +458,20 @@ class RandomRotation3D(MTTransform):
         gt_rotated = np.zeros(gt_data.shape, dtype=gt_data.dtype) if self.labeled else None
 
         # TODO: Would be faster with only one vectorial operation
-        # TODO: Use the axis index for factoring this loop
-        for i in range(len(input_data)):
-            for x in range(input_data[0].shape[self.axis]):
-                if self.axis == 0:
-                    input_rotated[i, x, :, :] = F.rotate(Image.fromarray(input_data[x, :, :], mode='F'), angle)
-                    if self.labeled:
-                        gt_rotated[i, x, :, :] = F.rotate(Image.fromarray(gt_data[x, :, :], mode='L'), angle)
-                if self.axis == 1:
-                    input_rotated[i, :, x, :] = F.rotate(Image.fromarray(input_data[:, x, :], mode='F'), angle)
-                    if self.labeled:
-                        gt_rotated[i, :, x, :] = F.rotate(Image.fromarray(gt_data[:, x, :], mode='L'), angle)
-                if self.axis == 2:
-                    input_rotated[i, :, :, x] = F.rotate(Image.fromarray(input_data[:, :, x], mode='F'), angle)
-                    if self.labeled:
-                        gt_rotated[i, :, :, x] = F.rotate(Image.fromarray(gt_data[:, :, x], mode='L'), angle)
+        # TODO: Use the axis index for factoring this loopgit a
+        for x in range(input_data.shape[self.axis]):
+            if self.axis == 0:
+                input_rotated[x, :, :] = F.rotate(Image.fromarray(input_data[x, :, :], mode='F'), angle)
+                if self.labeled:
+                    gt_rotated[x, :, :] = F.rotate(Image.fromarray(gt_data[x, :, :], mode='F'), angle)
+            if self.axis == 1:
+                input_rotated[:, x, :] = F.rotate(Image.fromarray(input_data[:, x, :], mode='F'), angle)
+                if self.labeled:
+                    gt_rotated[:, x, :] = F.rotate(Image.fromarray(gt_data[:, x, :], mode='F'), angle)
+            if self.axis == 2:
+                input_rotated[:, :, x] = F.rotate(Image.fromarray(input_data[:, :, x], mode='F'), angle)
+                if self.labeled:
+                    gt_rotated[:, :, x] = F.rotate(Image.fromarray(gt_data[:, :, x], mode='F'), angle)
 
         rdict['input'] = input_rotated
         if self.labeled:
@@ -489,19 +491,24 @@ class RandomReverse3D(MTTransform):
 
     def __call__(self, sample):
         rdict = {}
-        input_data = sample['input']
+        input_list = sample['input']
+        if not isinstance(input_list, list):
+            input_list = [sample['input']]
         gt_data = sample['gt'] if self.labeled else None
-        if np.random.randint(2) == 1:
-            input_data = np.flip(input_data, axis=1).copy()
-            if self.labeled: gt_data = np.flip(gt_data, axis=0).copy()
-        if np.random.randint(2) == 1:
-            input_data = np.flip(input_data, axis=2).copy()
-            if self.labeled: gt_data = np.flip(gt_data, axis=1).copy()
-        if np.random.randint(2) == 1:
-            input_data = np.flip(input_data, axis=3).copy()
-            if self.labeled: gt_data = np.flip(gt_data, axis=2).copy()
+        reverse_input = []
+        for input_data in input_list:
+            if np.random.randint(2) == 1:
+                input_data = np.flip(input_data, axis=0).copy()
+                if self.labeled: gt_data = np.flip(gt_data, axis=0).copy()
+            if np.random.randint(2) == 1:
+                input_data = np.flip(input_data, axis=1).copy()
+                if self.labeled: gt_data = np.flip(gt_data, axis=1).copy()
+            if np.random.randint(2) == 1:
+                input_data = np.flip(input_data, axis=2).copy()
+                if self.labeled: gt_data = np.flip(gt_data, axis=2).copy()
+            reverse_input.append(input_data)
 
-        rdict['input'] = input_data
+        rdict['input'] = reverse_input
         if self.labeled: rdict['gt'] = gt_data
 
         sample.update(rdict)
@@ -665,12 +672,14 @@ class RandomTensorChannelShift(MTTransform):
 
 
 class ElasticTransform(MTTransform):
+    "Elastic transform for 2D and 3D inputs"
     def __init__(self, alpha_range, sigma_range,
                  p=0.5, labeled=True):
         self.alpha_range = alpha_range
         self.sigma_range = sigma_range
         self.labeled = labeled
         self.p = p
+        self.is3D = False
 
     @staticmethod
     def get_params(alpha, sigma):
@@ -678,26 +687,35 @@ class ElasticTransform(MTTransform):
         sigma = np.random.uniform(sigma[0], sigma[1])
         return alpha, sigma
 
-    @staticmethod
-    def elastic_transform(image, alpha, sigma):
+    def elastic_transform(self, image, alpha, sigma):
         shape = image.shape
         dx = gaussian_filter((np.random.rand(*shape) * 2 - 1),
                              sigma, mode="constant", cval=0) * alpha
         dy = gaussian_filter((np.random.rand(*shape) * 2 - 1),
                              sigma, mode="constant", cval=0) * alpha
-
-        x, y = np.meshgrid(np.arange(shape[0]),
-                           np.arange(shape[1]), indexing='ij')
-        indices = np.reshape(x + dx, (-1, 1)), np.reshape(y + dy, (-1, 1))
+        if self.is3D:
+            dz = gaussian_filter((np.random.rand(*shape) * 2 - 1),
+                                 sigma, mode="constant", cval=0) * alpha
+            x, y, z = np.meshgrid(np.arange(shape[0]),
+                                  np.arange(shape[1]),
+                                  np.arange(shape[2]), indexing='ij')
+            indices = np.reshape(x + dx, (-1, 1)), np.reshape(y + dy, (-1, 1)), np.reshape(z + dz, (-1, 1))
+        else:
+            x, y = np.meshgrid(np.arange(shape[0]),
+                               np.arange(shape[1]), indexing='ij')
+            indices = np.reshape(x + dx, (-1, 1)), np.reshape(y + dy, (-1, 1))
         return map_coordinates(image, indices, order=1).reshape(shape)
 
     def sample_augment(self, input_data, params):
         param_alpha, param_sigma = params
-
         np_input_data = np.array(input_data)
+        if len(np_input_data.shape) == 3:
+            self.is3D = True
+
         np_input_data = self.elastic_transform(np_input_data,
                                                param_alpha, param_sigma)
-        input_data = Image.fromarray(np_input_data, mode='F')
+        if not self.is3D:
+            input_data = Image.fromarray(np_input_data, mode='F')
         return input_data
 
     def label_augment(self, gt_data, params):
@@ -706,10 +724,11 @@ class ElasticTransform(MTTransform):
         np_gt_data = np.array(gt_data)
         np_gt_data = self.elastic_transform(np_gt_data,
                                             param_alpha, param_sigma)
-        np_gt_data[np_gt_data >= 0.5] = 255.0
-        np_gt_data[np_gt_data < 0.5] = 0.0
-        np_gt_data = np_gt_data.astype(np.uint8)
-        gt_data = Image.fromarray(np_gt_data, mode='L')
+        if not self.is3D:
+            np_gt_data[np_gt_data >= 0.5] = 255.0
+            np_gt_data[np_gt_data < 0.5] = 0.0
+            np_gt_data = np_gt_data.astype(np.uint8)
+            gt_data = Image.fromarray(np_gt_data, mode='L')
 
         return gt_data
 
@@ -726,7 +745,7 @@ class ElasticTransform(MTTransform):
                              for item in input_data]
             else:
                 ret_input = self.sample_augment(input_data, params)
-
+                
             rdict['input'] = ret_input
 
             if self.labeled:
