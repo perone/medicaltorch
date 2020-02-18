@@ -405,7 +405,7 @@ class RandomRotation(MTTransform):
         rdict = {}
         input_data = sample['input'][0]
 
-        if angle is not None:  # ie during "do transform" (vs "undo transform")
+        if angle is None:  # ie during "do transform" (vs "undo transform")
             angle = self.get_params(self.degrees)
             # save angle in metadata
             rdict['gt_metadata']['randomRotation'] = angle
@@ -455,13 +455,17 @@ class RandomRotation3D(MTTransform):
         angle = np.random.uniform(degrees[0], degrees[1])
         return angle
 
-    def __call__(self, sample):
+    def __call__(self, sample, angle=None):
         rdict = {}
         input_data = sample['input']
         if len(sample['input'][0].shape) != 3:
             raise ValueError("Input of RandomRotation3D should be a 3 dimensionnal tensor.")
 
-        angle = self.get_params(self.degrees)
+        if angle is None:  # ie during "do transform" (vs "undo transform")
+            angle = self.get_params(self.degrees)
+            # save angle in metadata
+            rdict['gt_metadata']['randomRotation'] = angle
+
         input_rotated = [np.zeros(input_data[0].shape, dtype=input_data.dtype) for i in range(len(input_data))]
         gt_data = sample['gt'] if self.labeled else None
         gt_rotated = np.zeros(gt_data.shape, dtype=gt_data.dtype) if self.labeled else None
@@ -486,13 +490,13 @@ class RandomRotation3D(MTTransform):
         if self.labeled:
             rdict['gt'] = gt_rotated
 
-        # save angle in metadata
-        rdict['input_metadata']['randomRotation'] = angle
-        rdict['gt_metadata']['randomRotation'] = angle
-
         sample.update(rdict)
 
         return sample
+
+    def undo_transform(self, sample):
+        # we apply the inverse rotation
+        return self.__call__(sample, - sample['gt_metadata']['randomRotation'])
 
 
 class RandomReverse3D(MTTransform):
