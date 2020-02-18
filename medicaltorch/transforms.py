@@ -480,6 +480,11 @@ class RandomRotation3D(MTTransform):
         rdict['input'] = input_rotated
         if self.labeled:
             rdict['gt'] = gt_rotated
+
+        # save angle in metadata
+        rdict['input_metadata']['randomRotation'] = angle
+        rdict['gt_metadata']['randomRotation'] = angle
+
         sample.update(rdict)
 
         return sample
