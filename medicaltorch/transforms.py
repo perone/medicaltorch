@@ -401,10 +401,15 @@ class RandomRotation(MTTransform):
         angle = np.random.uniform(degrees[0], degrees[1])
         return angle
 
-    def __call__(self, sample):
+    def __call__(self, sample, angle=None):
         rdict = {}
         input_data = sample['input'][0]
-        angle = self.get_params(self.degrees)
+
+        if angle is not None:  # ie during "do transform" (vs "undo transform")
+            angle = self.get_params(self.degrees)
+            # save angle in metadata
+            rdict['gt_metadata']['randomRotation'] = angle
+
         for i in range(len(input_data)):
             input_data[i] = F.rotate(input_data[i], angle,
                                      self.resample, self.expand,
@@ -418,12 +423,12 @@ class RandomRotation(MTTransform):
                                self.center)
             rdict['gt'] = gt_data
 
-        # save angle in metadata
-        rdict['input_metadata']['randomRotation'] = angle
-        rdict['gt_metadata']['randomRotation'] = angle
-
         sample.update(rdict)
         return sample
+
+    def undo_transform(self, sample):
+        # we apply the inverse rotation
+        return self.__call__(sample, - sample['gt_metadata']['randomRotation'])
 
 
 class RandomRotation3D(MTTransform):
