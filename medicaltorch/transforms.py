@@ -418,6 +418,10 @@ class RandomRotation(MTTransform):
                                self.center)
             rdict['gt'] = gt_data
 
+        # save angle in metadata
+        rdict['input_metadata']['randomRotation'] = angle
+        rdict['gt_metadata']['randomRotation'] = angle
+
         sample.update(rdict)
         return sample
 
