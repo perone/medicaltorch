@@ -4,7 +4,7 @@
 
 [![DOI](https://zenodo.org/badge/123063153.svg)](https://zenodo.org/badge/latestdoi/123063153)
 
-# Welcome to MedicalTorch
+# Warm Welcome to MedicalTorch
 MedicalTorch is an open-source framework for PyTorch, implementing an extensive set
 of loaders, pre-processors and datasets for medical imaging.
 
