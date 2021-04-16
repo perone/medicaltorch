@@ -39,10 +39,10 @@ def numeric_score(prediction, groundtruth):
 
     return: tuple (FP, FN, TP, TN)
     """
-    FP = np.float(np.sum((prediction == 1) & (groundtruth == 0)))
-    FN = np.float(np.sum((prediction == 0) & (groundtruth == 1)))
-    TP = np.float(np.sum((prediction == 1) & (groundtruth == 1)))
-    TN = np.float(np.sum((prediction == 0) & (groundtruth == 0)))
+    FP = np.float32(np.sum((prediction == 1) & (groundtruth == 0)))
+    FN = np.float32(np.sum((prediction == 0) & (groundtruth == 1)))
+    TP = np.float32(np.sum((prediction == 1) & (groundtruth == 1)))
+    TN = np.float32(np.sum((prediction == 0) & (groundtruth == 0)))
     return FP, FN, TP, TN
 
 
