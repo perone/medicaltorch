@@ -168,7 +168,7 @@ class NoPoolASPP(Module):
         amort = self.amort_drop(amort)
 
         predictions = self.prediction(amort)
-        predictions = F.sigmoid(predictions)
+        predictions = torch.sigmoid(predictions)
 
         return predictions
 
