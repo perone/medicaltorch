@@ -10,10 +10,11 @@ import nibabel as nib
 
 from torch.utils.data import Dataset
 import torch
-from torch._six import string_classes, int_classes
+from torch._six import string_classes
 
 from PIL import Image
 
+int_classes = int
 
 __numpy_type_map = {
     'float64': torch.DoubleTensor,
